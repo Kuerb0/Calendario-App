@@ -8425,7 +8425,7 @@ class Widget(tk.Tk):
                   self.nivel == "encima", 46, None)]),
             (2, [("🔔" if notif_activas else "🔕", "btn_avisos",
                   not notif_activas, 26, None)]),
-            (1, [("⏳", "btn_cuenta", bool(cuentas_vigentes()), 26, None)]),
+            (0, [("⏳", "btn_cuenta", bool(cuentas_vigentes()), 26, None)]),   # prioridad 0: nunca pasa al menú ⋯
             (0, [("", "btn_ocultar", False, 22, "ocultar")]),
         ]
         # botones que el usuario ha quitado (Panel de control > Barra)
