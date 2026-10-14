@@ -1,0 +1,149 @@
+@echo off
+chcp 65001 >nul
+setlocal EnableExtensions
+title Calendario @@VERSION@@ - Actualizar
+color 0B
+
+echo ============================================================
+echo    Calendario @@VERSION@@ - actualizar
+echo ============================================================
+echo.
+echo Esto sustituye el programa por la version nueva, EN ESTA MISMA
+echo CARPETA, y instala las librerias que falten. No toca tu
+echo configuracion ni tus perfiles ^(carpeta datos^).
+echo.
+echo Cierra antes el widget: icono de la bandeja ^> Salir.
+echo.
+pause
+
+set "SELF=%~f0"
+set "SELF_DIR=%~dp0"
+if "%SELF_DIR:~-1%"=="\" set "SELF_DIR=%SELF_DIR:~0,-1%"
+for %%I in ("%SELF_DIR%") do set "SELF_NAME=%%~nxI"
+set "INSTALL_DIR=%SELF_DIR%"
+if /i "%SELF_NAME%"=="instaladores" for %%I in ("%SELF_DIR%\..") do set "INSTALL_DIR=%%~fI"
+set "WORKDIR=%TEMP%\calendario_actualizar_%RANDOM%"
+
+if exist "%INSTALL_DIR%\app\calendario.py" goto :hay_instalacion
+if exist "%INSTALL_DIR%\calendario.py" goto :hay_instalacion
+echo.
+echo No encuentro una instalacion de Calendario en esta carpeta:
+echo   %INSTALL_DIR%
+echo Esto actualiza una instalacion que ya exista aqui. Si es la primera
+echo vez, usa el instalador completo ^(el que tambien mete Python^).
+pause
+exit /b 1
+
+:hay_instalacion
+if not exist "%WORKDIR%" mkdir "%WORKDIR%" >nul 2>&1
+
+echo.
+echo [1/5] Guardando una copia de lo anterior, por si acaso...
+if not exist "%INSTALL_DIR%\datos" mkdir "%INSTALL_DIR%\datos" >nul 2>&1
+set "COPIAS=%INSTALL_DIR%\datos\anteriores"
+if not exist "%COPIAS%" mkdir "%COPIAS%" >nul 2>&1
+if exist "%INSTALL_DIR%\app\calendario.py" copy /y "%INSTALL_DIR%\app\calendario.py" "%COPIAS%\calendario_anterior.py" >nul 2>&1
+if exist "%INSTALL_DIR%\app\configurar.py" copy /y "%INSTALL_DIR%\app\configurar.py" "%COPIAS%\configurar_anterior.py" >nul 2>&1
+if exist "%INSTALL_DIR%\calendario.py" copy /y "%INSTALL_DIR%\calendario.py" "%COPIAS%\calendario_anterior.py" >nul 2>&1
+if exist "%INSTALL_DIR%\configurar.py" copy /y "%INSTALL_DIR%\configurar.py" "%COPIAS%\configurar_anterior.py" >nul 2>&1
+if exist "%INSTALL_DIR%\datos\config.json" copy /y "%INSTALL_DIR%\datos\config.json" "%COPIAS%\config_anterior.json" >nul 2>&1
+if exist "%INSTALL_DIR%\config.json" copy /y "%INSTALL_DIR%\config.json" "%COPIAS%\config_anterior.json" >nul 2>&1
+
+echo.
+echo [2/5] Extrayendo la version nueva...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$l=Get-Content -LiteralPath '%SELF%' -Encoding UTF8; $s=($l | Select-String -SimpleMatch ':::PSSTART' | Select-Object -Last 1).LineNumber; $e=($l | Select-String -SimpleMatch ':::PSEND' | Select-Object -Last 1).LineNumber; $l[$s..($e-2)] | Set-Content -LiteralPath '%WORKDIR%\extraer.ps1' -Encoding UTF8"
+if not exist "%WORKDIR%\extraer.ps1" (
+    echo No se ha podido preparar la actualizacion ^(fallo al extraer el script^).
+    pause
+    exit /b 1
+)
+powershell -NoProfile -ExecutionPolicy Bypass -File "%WORKDIR%\extraer.ps1" "%SELF%" "%INSTALL_DIR%"
+if not exist "%INSTALL_DIR%\app\calendario.py" (
+    echo No se ha podido extraer app\calendario.py.
+    pause
+    exit /b 1
+)
+
+echo.
+echo [3/5] Retirando los ficheros de la estructura antigua ^(si los hay^)...
+for %%F in ("calendario.py" "configurar.py" "icono.ico" "VERSION.txt" "instalar.bat" "Instalar.pyw") do if exist "%INSTALL_DIR%\%%~F" del /f /q "%INSTALL_DIR%\%%~F" >nul 2>&1
+if exist "%INSTALL_DIR%\ayuda" rmdir /s /q "%INSTALL_DIR%\ayuda" >nul 2>&1
+
+echo.
+echo [4/5] Buscando Python para instalar las librerias que falten...
+set "PYEXE="
+if exist "%INSTALL_DIR%\python\python.exe" call :probar "%INSTALL_DIR%\python\python.exe"
+if not defined PYEXE for /f "delims=" %%P in ('py -3 -c "import sys; print(sys.executable)" 2^>nul') do if not defined PYEXE call :probar "%%P"
+if not defined PYEXE for /f "delims=" %%P in ('python -c "import sys; print(sys.executable)" 2^>nul') do if not defined PYEXE call :probar "%%P"
+
+if defined PYEXE goto :con_python
+echo       No encuentro un Python valido. El programa se ha actualizado, pero
+echo       si falta alguna libreria usa el instalador completo.
+goto :accesos
+
+:con_python
+echo       Python: %PYEXE%
+"%PYEXE%" -m pip install --disable-pip-version-check -r "%INSTALL_DIR%\app\requirements.txt"
+if errorlevel 1 (
+    echo.
+    echo AVISO: no se han podido instalar algunas librerias ^(revisa internet^).
+    echo Vuelve a ejecutar esto cuando tengas conexion.
+    echo.
+)
+
+:accesos
+echo.
+echo [5/5] Actualizando los accesos directos...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$w=New-Object -ComObject WScript.Shell; foreach($c in @($w.SpecialFolders('Desktop'),$w.SpecialFolders('Startup'))){ $f=Join-Path $c 'Calendario.lnk'; if(Test-Path -LiteralPath $f){ $s=$w.CreateShortcut($f); $s.Arguments='\"%INSTALL_DIR%\app\calendario.py\"'; $s.WorkingDirectory='%INSTALL_DIR%\app'; $s.IconLocation='%INSTALL_DIR%\app\icono.ico'; $s.Save() } }"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$v=Join-Path ([Environment]::GetFolderPath('Startup')) 'Calendario.vbs'; if(Test-Path -LiteralPath $v){ $t=[IO.File]::ReadAllText($v); $t=$t.Replace('%INSTALL_DIR%\calendario.py','%INSTALL_DIR%\app\calendario.py').Replace('CurrentDirectory = \"%INSTALL_DIR%\"','CurrentDirectory = \"%INSTALL_DIR%\app\"'); [IO.File]::WriteAllText($v,$t) }"
+
+echo.
+echo Actualizacion terminada.
+echo Abre el calendario desde el acceso directo del Escritorio.
+echo Si algo fuera mal, lo anterior quedo guardado en:
+echo   %COPIAS%
+echo.
+pause
+
+rmdir /s /q "%WORKDIR%" >nul 2>&1
+exit /b 0
+
+:probar
+"%~1" -c "import sys, tkinter; sys.exit(0 if sys.version_info >= (3, 9) else 1)" >nul 2>&1
+if not errorlevel 1 set "PYEXE=%~1"
+exit /b 0
+
+:::PSSTART
+param([string]$self, [string]$dest)
+$enc = New-Object System.Text.UTF8Encoding($false)
+$lines = [System.IO.File]::ReadAllLines($self, $enc)
+$i = 0
+while ($i -lt $lines.Length) {
+    $l = $lines[$i]
+    if ($l.StartsWith(':::BEGIN ')) {
+        $partes = $l.Substring(9).Trim().Split('|')
+        $rel = $partes[0]
+        $modo = $partes[1]
+        $j = $i + 1
+        $buf = New-Object System.Collections.Generic.List[string]
+        while ($j -lt $lines.Length -and -not $lines[$j].StartsWith(':::END')) {
+            $buf.Add($lines[$j])
+            $j++
+        }
+        $destino = Join-Path $dest $rel
+        $carpeta = Split-Path -Parent $destino
+        if (-not (Test-Path -LiteralPath $carpeta)) {
+            New-Item -ItemType Directory -Path $carpeta -Force | Out-Null
+        }
+        if ($modo -eq 'b64') {
+            [System.IO.File]::WriteAllBytes($destino, [Convert]::FromBase64String(($buf -join '')))
+        } else {
+            [System.IO.File]::WriteAllText($destino, (($buf -join "`r`n") + "`r`n"), $enc)
+        }
+        $i = $j
+    }
+    $i++
+}
+:::PSEND
+
+@@PAYLOAD@@

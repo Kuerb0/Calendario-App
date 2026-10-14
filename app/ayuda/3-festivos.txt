@@ -1,0 +1,37 @@
+LOS FESTIVOS
+============
+
+El widget puede pintar tres grupos de festivos, cada uno con su color, y
+puedes encender o apagar cada grupo por separado (botón "Fest").
+
+1. NACIONALES
+   Los de toda España. Se calculan solos cada año, incluidas las fechas que
+   cambian, como el Viernes Santo.
+
+2. DE TU COMUNIDAD AUTÓNOMA
+   Elige la tuya en la lista. Incluye tanto los propios (por ejemplo el 2 de
+   mayo en Madrid o la Diada en Cataluña) como los traslados de fecha
+   cuando un festivo cae en domingo.
+
+3. LOS DE TU MUNICIPIO
+   Son los dos días que fija tu ayuntamiento cada año, y no hay ninguna base
+   de datos nacional que los recoja, así que hay que ponerlos a mano.
+
+   DÓNDE MIRARLOS
+   - Busca "calendario laboral <tu municipio> <año>".
+   - O en el boletín oficial de tu comunidad, que los publica en otoño para
+     el año siguiente.
+
+   CÓMO PONERLOS
+   - En el asistente, escribe el nombre del municipio y las dos fechas en
+     formato dd/mm.
+   - La mayoría se repiten cada año en la misma fecha, así que se calculan
+     solos en adelante.
+   - Si algún año cambian, puedes corregirlo en config.json, en el apartado
+     festivos -> local -> fijos (fechas de todos los años) o "extra" (un año
+     concreto, con formato aaaa-mm-dd).
+
+SI NO QUIERES FESTIVOS
+----------------------
+Deja el municipio en blanco y apaga los grupos que no te interesen desde el
+botón "Fest" del widget.

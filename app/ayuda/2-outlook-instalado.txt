@@ -1,0 +1,41 @@
+LEER DEL OUTLOOK INSTALADO EN EL ORDENADOR
+==========================================
+
+Es la mejor opción si la tienes disponible, porque:
+
+  - Los cambios se ven al instante, sin esperas.
+  - Se leen las ETIQUETAS (categorías) con el color que tú les diste.
+  - No hace falta publicar nada ni generar ningún enlace.
+
+QUÉ HACE FALTA
+--------------
+
+1. El Outlook CLÁSICO de escritorio (el de toda la vida, outlook.exe).
+   El Outlook NUEVO (olk.exe, el de la Microsoft Store) no vale: no permite
+   que otros programas lean su calendario.
+
+2. Que tu cuenta esté añadida en ese Outlook. Para comprobarlo, ábrelo y
+   mira si ves tu calendario con tus eventos.
+
+3. Si no está: Archivo -> Agregar cuenta, y sigues los pasos.
+
+CÓMO ELEGIR EL CALENDARIO CORRECTO
+----------------------------------
+
+El asistente te muestra todos los calendarios que encuentra, con cuántos
+elementos tiene cada uno. Si tienes varias cuentas (por ejemplo una del
+trabajo o de la universidad y otra personal), fíjate bien:
+
+  - El nombre lleva delante la cuenta a la que pertenece.
+  - El número de elementos te ayuda a distinguirlos.
+  - El calendario "por defecto" de Outlook no tiene por qué ser el tuyo.
+
+SOBRE LAS ETIQUETAS
+-------------------
+
+En Outlook las categorías son POR CUENTA. El widget pide los colores a la
+cuenta del calendario que estés leyendo, así que verás exactamente los
+mismos colores que en Outlook.
+
+Si un evento no tiene ninguna etiqueta puesta, sale con el color general
+del calendario.

@@ -1,0 +1,42 @@
+YA ESTÁ INSTALADO: QUÉ PUEDES HACER
+===================================
+
+ARRANQUE
+--------
+- Se inicia solo con Windows.
+- El acceso directo del escritorio lo muestra u oculta.
+- El icono junto al reloj: clic para mostrar u ocultar, clic derecho para
+  el menú completo.
+- Ctrl+Alt+C hace lo mismo desde cualquier programa (se puede cambiar).
+
+LA BARRA DE ARRIBA
+------------------
+  <  >        moverte por los días
+  hoy         volver al día actual (aparece solo si te has movido)
+  1 3 5 7 14 21 …   cuántos días ves; "…" para escribir un número hasta 45
+  Fest        encender o apagar cada grupo de festivos
+  +           crear un evento nuevo
+  Buscar      buscar un evento o ir a una fecha concreta
+  Hora        cambiar la franja horaria visible
+  Fondo/Normal/Encima   dónde vive la ventana respecto a otras
+  Cal Lista Ambas Mes   la vista
+  ⟳           actualizar ahora
+  –           ocultar
+
+CON EL RATÓN
+------------
+- Pasa el ratón por un evento: ves lugar, notas y hora completa.
+- Clic derecho sobre un evento: copiarlo o filtrar por su etiqueta.
+- Arrastra el widget para moverlo; recuerda la posición de cada
+  combinación de pantallas que uses.
+- Rueda: mueve los días. Sobre la columna de horas, mueve el horario.
+  Con Ctrl, agranda o encoge todo.
+
+SI ALGO FALLA
+-------------
+1. Cierra del todo desde el icono de la bandeja (Salir) y vuelve a abrirlo.
+2. Ejecuta diagnostico.py.
+3. Mira registro.txt.
+
+Todos los ajustes se pueden cambiar luego desde el clic derecho del widget,
+o volviendo a ejecutar configurar.py.

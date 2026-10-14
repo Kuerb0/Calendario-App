@@ -1,0 +1,9 @@
+requests
+icalendar
+recurring_ical_events
+pywin32
+tzdata
+pystray
+pillow
+winotify
+holidays

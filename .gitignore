@@ -1,0 +1,34 @@
+# Datos personales: NO deben subirse nunca al repositorio.
+datos/
+*.migrado
+config.json
+config.json.bak
+config-*.json
+config_*.json
+perfiles/
+cache.pkl
+registro.txt
+diagnostico.txt
+alternar.senal
+
+# Generados en cada equipo
+python/
+exe/
+build/
+dist/
+__pycache__/
+*.pyc
+
+# Datos y restos de este equipo (no son del programa)
+datos/
+anteriores/
+perfiles.migrado/
+*.bak
+*.log
+.claude/
+.claude-flow/
+.swarm/
+.env
+
+# Instaladores: se reparten como Release de GitHub, no dentro del repositorio
+instaladores/*.bat

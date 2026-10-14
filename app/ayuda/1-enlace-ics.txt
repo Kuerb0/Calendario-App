@@ -1,0 +1,52 @@
+CÓMO CONSEGUIR EL ENLACE DE TU CALENDARIO (ICS)
+===============================================
+
+Este enlace es una dirección de internet que Outlook genera para que otros
+programas puedan LEER tu calendario. Solo permite leer, nunca escribir, y
+puedes anularlo cuando quieras.
+
+PASOS
+-----
+
+1. Entra en https://outlook.live.com/calendar/ con tu cuenta.
+
+2. Arriba a la derecha, pulsa el engranaje (Configuración).
+
+3. En la ventana que se abre, ve a:
+      Calendario  ->  Calendarios compartidos
+
+4. Busca el apartado "Publicar un calendario".
+
+5. En "Seleccionar un calendario" elige el que quieras mostrar
+   (normalmente "Calendario").
+
+6. En "Seleccionar permisos" elige:
+      "Puede ver todos los detalles"
+   Si eliges menos, el widget solo vería los huecos ocupados, sin títulos.
+
+7. Pulsa "Publicar".
+
+8. Aparecerán dos enlaces. Copia el que TERMINA EN .ics
+   (el otro, el que acaba en .html, es para ver el calendario en el
+   navegador y aquí no sirve).
+
+9. Pégalo en el asistente.
+
+COMPROBACIÓN
+------------
+Un enlace correcto se parece a esto:
+
+  https://outlook.live.com/owa/calendar/00000000-.../.../calendar.ics
+
+Si lo pegas en el navegador debe descargarse un fichero de texto que
+empieza por BEGIN:VCALENDAR.
+
+SI ALGO NO CUADRA
+-----------------
+- Si el widget aparece vacío, ejecuta diagnostico.py: te dirá si el enlace
+  responde y cuántos eventos tiene.
+- Los eventos nuevos tardan un rato en aparecer: Microsoft guarda una copia
+  temporal del calendario publicado y puede tardar desde minutos hasta un
+  par de horas en refrescarla. Esto no lo puede acelerar el widget.
+- Si prefieres que los cambios se vean al instante, usa la otra opción del
+  asistente: leer del Outlook instalado.
