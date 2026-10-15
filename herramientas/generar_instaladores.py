@@ -44,8 +44,8 @@ ARCHIVOS = [
 ]
 
 PLANTILLAS_BAT = [
-    ("instalador.bat.txt", "Calendario {v} - Instalador.bat"),
-    ("actualizar.bat.txt", "Calendario {v} - Actualizar.bat"),
+    ("instalador.bat.txt", "Calendario {v} - Instalador.bat", "titulo_instalador.txt"),
+    ("actualizar.bat.txt", "Calendario {v} - Actualizar.bat", "titulo_actualizar.txt"),
 ]
 
 
@@ -113,15 +113,28 @@ def main():
     version = version_del_programa()
     os.makedirs(SALIDA, exist_ok=True)
     carga = carga_util()
-    for plantilla, nombre in PLANTILLAS_BAT:
+
+    def leer_plantilla(nombre):
+        with open(os.path.join(PLANTILLAS, nombre), encoding="utf-8") as f:
+            return f.read().rstrip("\n").split("\n")
+
+    for plantilla, nombre, titulo_txt in PLANTILLAS_BAT:
+        # PowerShell imprime el banner (aguamarina) y el titulo (blanco) desde estos bloques;
+        # los crea herramientas/crear_banner.py
+        banner = ([":::BANNERSTART"] + leer_plantilla("banner.txt") + [":::BANNEREND"]
+                  + [":::TITULOSTART"]
+                  + [l.replace("@@VERSION@@", version) for l in leer_plantilla(titulo_txt)]
+                  + [":::TITULOEND"])
         with open(os.path.join(PLANTILLAS, plantilla), encoding="utf-8") as f:
             texto = f.read().replace("\r\n", "\n")
-        assert "@@PAYLOAD@@" in texto, plantilla
+        assert "@@PAYLOAD@@" in texto and "@@BANNER@@" in texto, plantilla
         lineas = texto.replace("@@VERSION@@", version).split("\n")
         completo = []
         for linea in lineas:
             if linea.strip() == "@@PAYLOAD@@":
                 completo += carga
+            elif linea.strip() == "@@BANNER@@":
+                completo += banner
             else:
                 completo.append(linea)
         contenido = ("\r\n".join(completo).rstrip("\r\n") + "\r\n").encode("utf-8")

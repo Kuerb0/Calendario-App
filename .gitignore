@@ -30,5 +30,4 @@ perfiles.migrado/
 .swarm/
 .env
 
-# Instaladores: se reparten como Release de GitHub, no dentro del repositorio
-instaladores/*.bat
+# Instaladores: se versionan en instaladores/ (autoextraibles, con el programa dentro)

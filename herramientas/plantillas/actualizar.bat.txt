@@ -2,11 +2,9 @@
 chcp 65001 >nul
 setlocal EnableExtensions
 title Calendario @@VERSION@@ - Actualizar
-color 0B
+color 0F
 
-echo ============================================================
-echo    Calendario @@VERSION@@ - actualizar
-echo ============================================================
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Console]::OutputEncoding=[Text.Encoding]::UTF8; $l=[IO.File]::ReadAllLines('%~f0',[Text.Encoding]::UTF8); $a=[Array]::IndexOf($l,':::BANNERSTART'); $b=[Array]::IndexOf($l,':::BANNEREND'); foreach($t in $l[($a+1)..($b-1)]){ $p=$t.Split([char]0xA7); Write-Host -NoNewline $p[0] -ForegroundColor DarkCyan; if($p.Length -gt 1){ Write-Host -NoNewline 'O' -ForegroundColor DarkYellow; Write-Host $p[1] -ForegroundColor DarkCyan } else { Write-Host '' } }; $a=[Array]::IndexOf($l,':::TITULOSTART'); $b=[Array]::IndexOf($l,':::TITULOEND'); $l[($a+1)..($b-1)] | ForEach-Object { Write-Host $_ -ForegroundColor White }"
 echo.
 echo Esto sustituye el programa por la version nueva, EN ESTA MISMA
 echo CARPETA, y instala las librerias que falten. No toca tu
@@ -145,5 +143,7 @@ while ($i -lt $lines.Length) {
     $i++
 }
 :::PSEND
+
+@@BANNER@@
 
 @@PAYLOAD@@
