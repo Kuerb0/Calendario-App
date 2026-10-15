@@ -224,7 +224,7 @@ si no ha sido posible conectar.
 - **Redimensionar más cómodo**: los bordes de las columnas de correo y to-dos tienen tirador (tres puntos) que se enciende al pasar el ratón, el arrastre va más fluido y con doble clic vuelven a su ancho por defecto.
 - **Tamaño de la barra**: Panel de control › Barra › *Tamaño de la barra* (Pequeña, Media, Grande). Por defecto va en Media; con Grande los botones se ven al doble, pero en un widget estrecho se esconden más.
 - **Barra superior**: `✕` (arriba a la izquierda) cierra el widget del todo; `—` lo oculta/minimiza · `‹ ›` navegar · `hoy` · `1 / 3 / 5 / 7 / 14 / 21` días,
-  y `…` para escribir cualquier número hasta 45 · `Fest`
+  y `…` para escribir cualquier número hasta 365 · `Fest`
   festivos · `+` evento nuevo · `Buscar` · `Hora` (a qué hora empieza y a cuál
   termina lo que se ve, **cada cuántos minutos van las rayas** —10, 15, 20, 30,
   60, 120 o los que escribas—, o ajustarlo a tus eventos) ·

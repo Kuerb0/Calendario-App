@@ -19,6 +19,7 @@ Mover: arrastrar con el raton.  Clic derecho: mismas opciones + salir.
 Icono junto al reloj: clic para mostrar u ocultar.
 """
 
+import copy
 import datetime as dt
 from functools import lru_cache
 import html
@@ -677,7 +678,8 @@ def letra(tam, estilo=None):
 
 aplicar_escala()
 NIVELES = {"fondo": "Fondo", "normal": "Normal", "encima": "Encima"}
-MAX_DIAS = 45           # tope de dias que se pueden mostrar a la vez
+MAX_DIAS = 365          # tope de dias que se pueden mostrar a la vez
+TOPE_NAVEGACION = 3650  # hasta donde se puede viajar (dias) desde hoy
 BORDE = 8               # margen sensible para redimensionar con el raton
 
 
@@ -711,12 +713,83 @@ def escribir_atomico(ruta, datos):
         raise
 
 
+# Avisos y alarmas: viajan por OneDrive entre ordenadores. Cada copia del
+# programa tiene CFG en memoria, asi que sin esto guardar desde un PC pisaba lo
+# que habia apuntado el otro, y nadie se enteraba de los cambios ajenos.
+CLAVES_AVISOS = ("alarmas", "avisar_de", "hechos", "avisos_eventos",
+                 "avisos_solo_etiqueta", "avisos_minutos", "aviso_todo_dia",
+                 "notificaciones_activas", "correo_avisos", "recordar_habitos",
+                 "hora_recordatorio")
+_SYNC = {"base": {}, "mtime": None}    # lo ultimo que vimos en disco
+
+
+def _fusionar(base, local, disco):
+    """Tres vias: aplica sobre `disco` lo que `local` cambio respecto a `base`."""
+    if local == base:
+        return disco
+    if disco == base:
+        return local
+    if isinstance(local, dict) and isinstance(disco, dict):
+        base = base if isinstance(base, dict) else {}
+        res = dict(disco)
+        res.update({k: v for k, v in local.items() if base.get(k) != v})
+        for k in base:
+            if k not in local:
+                res.pop(k, None)
+        return res
+    if isinstance(local, list) and isinstance(disco, list):
+        base = base if isinstance(base, list) else []
+        quitados = [x for x in base if x not in local]
+        nuevos = [x for x in local if x not in base and x not in disco]
+        return [x for x in disco if x not in quitados] + nuevos
+    return local        # valor suelto cambiado en los dos sitios: gana este PC
+
+
+def _mtime_config():
+    try:
+        return os.path.getmtime(CONFIG_PATH)
+    except OSError:
+        return None
+
+
+def recordar_disco(cfg=None):
+    """Anota el estado de los avisos que acaba de quedar en disco."""
+    cfg = CFG if cfg is None else cfg
+    _SYNC["base"] = {k: copy.deepcopy(cfg[k]) for k in CLAVES_AVISOS if k in cfg}
+    _SYNC["mtime"] = _mtime_config()
+
+
+def sincronizar_avisos():
+    """Mezcla en CFG los avisos que otro ordenador dejo en config.json."""
+    try:
+        with open(CONFIG_PATH, encoding="utf-8") as f:
+            disco = json.load(f)
+    except Exception:
+        return False                  # a medias o sin leer: se reintenta luego
+    _SYNC["mtime"] = _mtime_config()
+    cambio = False
+    for k in CLAVES_AVISOS:
+        if k not in disco:
+            continue
+        nuevo = _fusionar(_SYNC["base"].get(k), CFG.get(k), disco[k])
+        cambio = cambio or nuevo != CFG.get(k)
+        CFG[k] = nuevo
+        _SYNC["base"][k] = copy.deepcopy(disco[k])
+    return cambio
+
+
+def config_cambio_fuera():
+    """True si config.json ya no es el que escribimos o leimos nosotros."""
+    return _mtime_config() != _SYNC["mtime"]
+
+
 def guardar_config():
     """Guarda config.json sin riesgo de dejarlo a medias.
 
     Se serializa ANTES de tocar el disco: si CFG tuviera algo que json no
     sabe escribir, falla aqui y el fichero bueno sigue intacto.
     """
+    sincronizar_avisos()        # que no pise lo que apuntaron en otro PC
     try:
         texto = json.dumps(CFG, indent=2, ensure_ascii=False)
     except Exception as exc:
@@ -733,11 +806,15 @@ def guardar_config():
             except Exception as exc:
                 log(f"No se pudo copiar config.json.bak ({exc})")
         escribir_atomico(CONFIG_PATH, texto)
+        recordar_disco()
         return True
     except Exception as exc:
         log(f"NO SE PUDO GUARDAR config.json ({exc}); "
             "¿está la carpeta en un sitio sin permisos de escritura?")
         return False
+
+
+recordar_disco()
 
 
 # Guardado agrupado: marcar seis casillas de habitos seguidas no debe ser seis
@@ -830,11 +907,17 @@ def limites_ventana(ref=None, desplazamiento=0):
     return ini, ini + dt.timedelta(days=CFG["dias_visibles"])
 
 
+# Hasta donde ha viajado el usuario mas alla del cache normal (dias desde hoy).
+ALCANCE = {"atras": 0, "adelante": 0}
+
+
 def rango_descarga(ref=None):
     """Ventana amplia que se pide al servidor, para poder navegar sin red."""
     ini, _ = limites_ventana(ref)
-    adelante = max(CFG["dias_cache_adelante"], CFG["dias_visibles"] + 14)
-    return (ini - dt.timedelta(days=CFG["dias_cache_atras"]),
+    adelante = max(CFG["dias_cache_adelante"], CFG["dias_visibles"] + 14,
+                   ALCANCE["adelante"])
+    atras = max(CFG["dias_cache_atras"], ALCANCE["atras"])
+    return (ini - dt.timedelta(days=atras),
             ini + dt.timedelta(days=adelante))
 
 
@@ -6855,24 +6938,39 @@ class Widget(tk.Tk):
         return "break"
 
     def _mover(self, dias):
-        """Desplaza la ventana visible, sin salirse de lo que hay descargado."""
+        """Desplaza la ventana visible, descargando mas si se sale de lo que hay."""
         if self.vista == "mes" and abs(dias) >= 7:
             return self._mover_mes(-1 if dias < 0 else 1)
-        tope_atras = -CFG["dias_cache_atras"]
-        tope_alante = CFG["dias_cache_adelante"] - CFG["dias_visibles"]
-        self.desplazamiento = max(tope_atras,
-                                  min(tope_alante, self.desplazamiento + dias))
+        self.desplazamiento = max(-TOPE_NAVEGACION, min(
+            TOPE_NAVEGACION, self.desplazamiento + dias))
+        self._asegurar_datos()
         self.dibujar()
         return "break"
 
+    def _asegurar_datos(self):
+        """Si la ventana sale de lo descargado, amplia el rango y vuelve a bajar."""
+        ver = max(CFG["dias_visibles"], 42)      # el mes pinta hasta 6 semanas
+        pide = {"adelante": self.desplazamiento + ver,
+                "atras": -self.desplazamiento}
+        base = {"adelante": max(CFG["dias_cache_adelante"],
+                                CFG["dias_visibles"] + 14),
+                "atras": CFG["dias_cache_atras"]}
+        salio = False
+        for lado, necesito in pide.items():
+            if necesito > max(base[lado], ALCANCE[lado]):
+                ALCANCE[lado] = necesito + 60    # margen para seguir navegando
+                salio = True
+        if salio:
+            self.refrescar()
+
     def ir_a_fecha(self, fecha):
-        """Coloca la ventana visible en esa fecha (dentro de lo descargado)."""
+        """Coloca la ventana visible en esa fecha (si hace falta, descarga mas)."""
         base, _ = limites_ventana()
         self._mover(0)      # normaliza los topes
         objetivo = (fecha - base.date()).days
-        tope_atras = -CFG["dias_cache_atras"]
-        tope_alante = CFG["dias_cache_adelante"] - CFG["dias_visibles"]
-        self.desplazamiento = max(tope_atras, min(tope_alante, objetivo))
+        self.desplazamiento = max(-TOPE_NAVEGACION,
+                                  min(TOPE_NAVEGACION, objetivo))
+        self._asegurar_datos()
         self.dibujar()
         log(f"Ir a {fecha} (desplazamiento {self.desplazamiento})")
         return self.desplazamiento == objetivo
@@ -6888,6 +6986,7 @@ class Widget(tk.Tk):
 
     def _ir_a_hoy(self):
         self.desplazamiento = 0
+        ALCANCE.update(atras=0, adelante=0)     # el proximo refresco vuelve a lo normal
         self.dibujar()
         return "break"
 
@@ -7369,11 +7468,11 @@ class Widget(tk.Tk):
         return "break"
 
     def _dias_a_medida(self):
-        """Pide un numero de dias entre 1 y 45."""
+        """Pide un numero de dias entre 1 y MAX_DIAS."""
         try:
             from tkinter import simpledialog
             n = simpledialog.askinteger(
-                "Días a la vista", "¿Cuántos días quieres ver? (1 a 45)",
+                "Días a la vista", f"¿Cuántos días quieres ver? (1 a {MAX_DIAS})",
                 parent=self, initialvalue=CFG["dias_visibles"],
                 minvalue=1, maxvalue=MAX_DIAS)
         except Exception as exc:
@@ -7406,8 +7505,7 @@ class Widget(tk.Tk):
         self._encajar_dias(dias)
         CFG["dias_visibles"] = dias
         # el desplazamiento se recorta si la nueva ventana se sale del cache
-        self.desplazamiento = min(self.desplazamiento,
-                                  CFG["dias_cache_adelante"] - dias)
+        self.desplazamiento = min(self.desplazamiento, TOPE_NAVEGACION - dias)
         guardar_config()
         self.dibujar()
 
@@ -7754,6 +7852,8 @@ class Widget(tk.Tk):
     def tic(self):
         """Cada 30 s: repinta la linea de ahora y comprueba avisos."""
         ahora = dt.datetime.now(TZ)
+        if config_cambio_fuera() and sincronizar_avisos():
+            log("Avisos actualizados desde config.json (otro ordenador)")
         if CFG.get("notificaciones_activas", True):
             for ev in self.eventos:
                 if ev.todo_dia or ev.parte:  # los trozos de continuacion no avisan

@@ -500,6 +500,58 @@ def _():
         w.destroy()
 
 
+@prueba("avisos: lo que apunta otro PC se mezcla y guardar no lo pisa")
+def _():
+    import json
+    import tempfile
+    antes = (cal.CONFIG_PATH, dict(cal.CFG), dict(cal._SYNC))
+    with tempfile.TemporaryDirectory() as d:
+        try:
+            cal.CONFIG_PATH = os.path.join(d, "config.json")
+            cal.CFG["alarmas"] = {"a|2026-10-20": [10]}
+            cal.CFG["avisar_de"] = ["x"]
+            assert cal.guardar_config()
+            # "el otro PC" escribe su alarma en el mismo fichero
+            otro = json.load(open(cal.CONFIG_PATH, encoding="utf-8"))
+            otro["alarmas"]["b|2026-10-21"] = [30]
+            otro["avisar_de"].append("y")
+            with open(cal.CONFIG_PATH, "w", encoding="utf-8") as f:
+                json.dump(otro, f)
+            os.utime(cal.CONFIG_PATH, (time.time() + 5, time.time() + 5))
+            assert cal.config_cambio_fuera()
+            # mientras tanto este PC quita una y pone otra, y guarda
+            cal.CFG["alarmas"].pop("a|2026-10-20")
+            cal.CFG["alarmas"]["c|2026-10-22"] = [5]
+            assert cal.guardar_config()
+            disco = json.load(open(cal.CONFIG_PATH, encoding="utf-8"))
+            assert set(disco["alarmas"]) == {"b|2026-10-21", "c|2026-10-22"}, disco["alarmas"]
+            assert disco["avisar_de"] == ["x", "y"], disco["avisar_de"]
+            assert not cal.config_cambio_fuera()
+        finally:
+            cal.CONFIG_PATH = antes[0]
+            cal.CFG.clear()
+            cal.CFG.update(antes[1])
+            cal._SYNC.update(antes[2])
+
+
+@prueba("navegacion: se puede ir mas alla de 90 dias y el rango de descarga lo sigue")
+def _():
+    assert cal.MAX_DIAS > 90
+    w = cal.Widget()
+    try:
+        w.update()
+        w.refrescar = lambda *a, **k: None       # sin red
+        ahora = dt.date.today()
+        assert w.ir_a_fecha(ahora + dt.timedelta(days=400))
+        ini, fin = cal.rango_descarga()
+        assert fin.date() >= ahora + dt.timedelta(days=400 + 42), fin
+        w._ir_a_hoy()
+        assert cal.rango_descarga()[1] < ini + dt.timedelta(days=400)
+    finally:
+        cal.ALCANCE.update(atras=0, adelante=0)
+        w.destroy()
+
+
 if __name__ == "__main__":
     print(f"Ejecutando {len(PRUEBAS)} pruebas de calendario.py...\n")
     for p in PRUEBAS:

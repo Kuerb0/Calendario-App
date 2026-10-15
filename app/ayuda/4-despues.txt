@@ -13,7 +13,7 @@ LA BARRA DE ARRIBA
 ------------------
   <  >        moverte por los días
   hoy         volver al día actual (aparece solo si te has movido)
-  1 3 5 7 14 21 …   cuántos días ves; "…" para escribir un número hasta 45
+  1 3 5 7 14 21 …   cuántos días ves; "…" para escribir un número hasta 365
   Fest        encender o apagar cada grupo de festivos
   +           crear un evento nuevo
   Buscar      buscar un evento o ir a una fecha concreta
