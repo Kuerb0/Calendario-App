@@ -1,24 +1,8 @@
 @echo off
 chcp 65001 >nul
 setlocal EnableExtensions
-title Calendario @@VERSION@@ - Instalador
+title @@NOMBRE@@ @@VERSION@@ - Instalador
 color 0F
-
-powershell -NoProfile -ExecutionPolicy Bypass -Command "[Console]::OutputEncoding=[Text.Encoding]::UTF8; $l=[IO.File]::ReadAllLines('%~f0',[Text.Encoding]::UTF8); $a=[Array]::IndexOf($l,':::BANNERSTART'); $b=[Array]::IndexOf($l,':::BANNEREND'); foreach($t in $l[($a+1)..($b-1)]){ $p=$t.Split([char]0xA7); Write-Host -NoNewline $p[0] -ForegroundColor DarkCyan; if($p.Length -gt 1){ Write-Host -NoNewline 'O' -ForegroundColor DarkYellow; Write-Host $p[1] -ForegroundColor DarkCyan } else { Write-Host '' } }; $a=[Array]::IndexOf($l,':::TITULOSTART'); $b=[Array]::IndexOf($l,':::TITULOEND'); $l[($a+1)..($b-1)] | ForEach-Object { Write-Host $_ -ForegroundColor White }"
-echo.
-echo Esto va a:
-echo   1. Copiar el programa en esta carpeta ^(subcarpetas app, datos...^)
-echo   2. Buscar Python o, si no hay, instalar uno EN ESTA CARPETA
-echo      ^(no hace falta ser administrador^)
-echo   3. Instalar las librerias que necesita el programa
-echo   4. Crear un acceso directo en el Escritorio
-echo   5. Preguntarte si quieres que arranque solo con Windows
-echo   6. Abrir el asistente para que metas tus datos ^(Outlook, festivos...^)
-echo.
-echo Todo se queda dentro de esta carpeta. No se manda ni se guarda
-echo ningun dato tuyo en ningun sitio ajeno.
-echo.
-pause
 
 set "SELF=%~f0"
 set "SELF_DIR=%~dp0"
@@ -26,189 +10,39 @@ if "%SELF_DIR:~-1%"=="\" set "SELF_DIR=%SELF_DIR:~0,-1%"
 for %%I in ("%SELF_DIR%") do set "SELF_NAME=%%~nxI"
 set "INSTALL_DIR=%SELF_DIR%"
 if /i "%SELF_NAME%"=="instaladores" for %%I in ("%SELF_DIR%\..") do set "INSTALL_DIR=%%~fI"
-set "WORKDIR=%TEMP%\calendario_instalador_%RANDOM%"
-
-echo prueba > "%INSTALL_DIR%\.prueba_escritura" 2>nul
-if not exist "%INSTALL_DIR%\.prueba_escritura" (
-    echo.
-    echo No puedo escribir en esta carpeta:
-    echo   %INSTALL_DIR%
-    echo Mueve este instalador a una carpeta tuya ^(por ejemplo, una nueva
-    echo carpeta "Calendario" en Documentos^) y vuelve a ejecutarlo.
-    pause
-    exit /b 1
-)
-del /f /q "%INSTALL_DIR%\.prueba_escritura" >nul 2>&1
-
-if not exist "%WORKDIR%" mkdir "%WORKDIR%" >nul 2>&1
+set "WORKDIR=%TEMP%\@@PREFIJO@@_instalador_%RANDOM%"
+mkdir "%WORKDIR%" >nul 2>&1
+set "VJ_WORK=%WORKDIR%"
+set "VJ_SELF=%SELF%"
+set "VJ_DIR=%INSTALL_DIR%"
+rem Con ventana (lo normal): PowerShell extrae el asistente y lo abre oculto; esta consola se cierra y el cuervo va en la ventana.
+rem Con -Silencioso se instala aqui mismo, en la consola, con el banner.
+set "VJ_GUI=1"
+echo %* | findstr /i /c:"-Silencioso" >nul && set "VJ_GUI="
 
 echo.
-echo [1/6] Extrayendo los ficheros del programa...
-
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$l=Get-Content -LiteralPath '%SELF%' -Encoding UTF8; $s=($l | Select-String -SimpleMatch ':::PSSTART' | Select-Object -Last 1).LineNumber; $e=($l | Select-String -SimpleMatch ':::PSEND' | Select-Object -Last 1).LineNumber; $l[$s..($e-2)] | Set-Content -LiteralPath '%WORKDIR%\extraer.ps1' -Encoding UTF8"
-if not exist "%WORKDIR%\extraer.ps1" (
+echo   Instalador de @@NOMBRE@@ @@VERSION@@ ^| Kuerb0
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$B={param($p) $n=[int]($p/5); Write-Host -NoNewline ([string][char]13+'  Cargando  ['+('#'*$n)+('.'*(20-$n))+'] '+$p+' %%  ') -ForegroundColor Cyan}; & $B 5; $l=Get-Content -LiteralPath '%SELF%' -Encoding UTF8; & $B 40; $s=($l | Select-String -SimpleMatch ':::PSSTART' | Select-Object -Last 1).LineNumber; $e=($l | Select-String -SimpleMatch ':::PSEND' | Select-Object -Last 1).LineNumber; & $B 55; $l[$s..($e-2)] | Set-Content -LiteralPath '%WORKDIR%\instalador.ps1' -Encoding UTF8; & $B 60; if ($env:VJ_GUI) { $q=[char]34; $a=('-NoProfile -ExecutionPolicy Bypass -STA -File '+$q+$env:VJ_WORK+'\instalador.ps1'+$q+' -Self '+$q+$env:VJ_SELF+$q+' -DirPorDefecto '+$q+$env:VJ_DIR+$q+' -LimpiarTemp'); $i=New-Object Diagnostics.ProcessStartInfo('powershell',$a); $i.UseShellExecute=$false; $i.CreateNoWindow=$true; [void][Diagnostics.Process]::Start($i); $k=0; while (-not (Test-Path (Join-Path $env:VJ_WORK 'listo')) -and $k -lt 100) { $k++; & $B ([Math]::Min(95,60+$k*2)); Start-Sleep -Milliseconds 120 } }; & $B 100; Write-Host ''"
+if not exist "%WORKDIR%\instalador.ps1" (
     echo No se ha podido preparar el instalador ^(fallo al extraer el script^).
     pause
     exit /b 1
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -File "%WORKDIR%\extraer.ps1" "%SELF%" "%INSTALL_DIR%"
-if not exist "%INSTALL_DIR%\app\calendario.py" (
-    echo No se ha podido extraer app\calendario.py.
-    pause
-    exit /b 1
-)
-if not exist "%INSTALL_DIR%\app\configurar.py" (
-    echo No se ha podido extraer app\configurar.py.
-    pause
-    exit /b 1
-)
-if not exist "%INSTALL_DIR%\datos" mkdir "%INSTALL_DIR%\datos" >nul 2>&1
+if defined VJ_GUI exit /b 0
 
+:consola
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Console]::OutputEncoding=[Text.Encoding]::UTF8; $l=[IO.File]::ReadAllLines('%~f0',[Text.Encoding]::UTF8); $a=[Array]::IndexOf($l,':::BANNERSTART'); $b=[Array]::IndexOf($l,':::BANNEREND'); foreach($t in $l[($a+1)..($b-1)]){ $p=$t.Split([char]0xA7); Write-Host -NoNewline $p[0] -ForegroundColor DarkCyan; if($p.Length -gt 1){ Write-Host -NoNewline 'O' -ForegroundColor DarkYellow; Write-Host $p[1] -ForegroundColor DarkCyan } else { Write-Host '' } }; $a=[Array]::IndexOf($l,':::TITULOSTART'); $b=[Array]::IndexOf($l,':::TITULOEND'); $l[($a+1)..($b-1)] | ForEach-Object { Write-Host $_ -ForegroundColor White }"
 echo.
-echo [2/6] Buscando Python ^(3.9 o superior, con ventanas graficas^)...
-
-set "PYEXE="
-if exist "%INSTALL_DIR%\python\python.exe" call :probar "%INSTALL_DIR%\python\python.exe"
-if not defined PYEXE for /f "delims=" %%P in ('py -3 -c "import sys; print(sys.executable)" 2^>nul') do if not defined PYEXE call :probar "%%P"
-if not defined PYEXE for /f "delims=" %%P in ('python -c "import sys; print(sys.executable)" 2^>nul') do if not defined PYEXE call :probar "%%P"
-
-if defined PYEXE goto :python_encontrado
-
-echo       No hay un Python valido: se va a descargar e instalar DENTRO
-echo       DE ESTA CARPETA ^(subcarpeta "python"^).
-echo       ^(puede tardar 1-2 minutos; se necesita conexion a internet^)
-set "PYINSTALLER=%WORKDIR%\python-instalador.exe"
-powershell -NoProfile -ExecutionPolicy Bypass -File "%INSTALL_DIR%\herramientas\descargar_python.ps1" "%PYINSTALLER%"
-if not exist "%PYINSTALLER%" goto :error_descarga_python
-
-"%PYINSTALLER%" /quiet TargetDir="%INSTALL_DIR%\python" InstallAllUsers=0 PrependPath=0 Include_pip=1 Include_tcltk=1 Include_test=0 Include_launcher=0
-if exist "%INSTALL_DIR%\python\python.exe" set "PYEXE=%INSTALL_DIR%\python\python.exe"
-if not defined PYEXE goto :error_instalacion_python
-echo       Python instalado en esta carpeta.
-goto :python_encontrado
-
-:error_descarga_python
-echo.
-echo No se ha podido descargar Python. Revisa la conexion a internet
-echo e intentalo de nuevo, o instala Python tu mismo desde python.org
-echo ^(marcando "Add python.exe to PATH" y "tcl/tk and IDLE"^) y vuelve a
-echo ejecutar este instalador.
-pause
-exit /b 1
-
-:error_instalacion_python
-echo.
-echo Algo ha fallado instalando Python en esta carpeta. Cierra esta
-echo ventana y vuelve a ejecutar el instalador: si Python quedo a
-echo medias, borra la subcarpeta "python" antes de reintentar.
-pause
-exit /b 1
-
-:python_encontrado
-set "PYWEXE=%PYEXE:python.exe=pythonw.exe%"
-echo       Python: %PYEXE%
-
-echo.
-echo [3/6] Instalando las librerias necesarias ^(puede tardar un minuto^)...
-"%PYEXE%" -m pip install --upgrade pip >nul 2>&1
-"%PYEXE%" -m pip install --disable-pip-version-check -r "%INSTALL_DIR%\app\requirements.txt"
-if errorlevel 1 (
-    echo.
-    echo Alguna libreria no se ha podido instalar. Revisa el mensaje de
-    echo arriba ^(suele ser falta de conexion a internet^) y vuelve a
-    echo ejecutar este instalador: lo que ya se instalo no se repite.
-    pause
-    exit /b 1
-)
-
-echo       Registrando pywin32 con Windows...
-for /f "delims=" %%S in ('"%PYEXE%" -c "import sysconfig; print(sysconfig.get_path('scripts'))" 2^>nul') do set "SCRIPTS_DIR=%%S"
-if defined SCRIPTS_DIR if exist "%SCRIPTS_DIR%\pywin32_postinstall.py" "%PYEXE%" "%SCRIPTS_DIR%\pywin32_postinstall.py" -install >nul 2>&1
-
-echo       Comprobando que todo carga...
-"%PYEXE%" -c "import requests, icalendar, recurring_ical_events, zoneinfo; zoneinfo.ZoneInfo('Europe/Madrid'); import win32com.client" >nul 2>&1
-if errorlevel 1 (
-    echo.
-    echo AVISO: alguna libreria no carga bien ^(zonas horarias u Outlook^).
-    echo El programa puede arrancar, pero conviene volver a ejecutar el
-    echo instalador. Si sigue igual, reinicia Windows y prueba otra vez.
-    echo.
-)
-
-echo.
-echo [4/6] Creando el acceso directo del Escritorio...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$w=New-Object -ComObject WScript.Shell; $s=$w.CreateShortcut((Join-Path $w.SpecialFolders('Desktop') 'Calendario.lnk')); $s.TargetPath='%PYWEXE%'; $s.Arguments='\"%INSTALL_DIR%\app\calendario.py\"'; $s.WorkingDirectory='%INSTALL_DIR%\app'; $s.IconLocation='%INSTALL_DIR%\app\icono.ico'; $s.Description='Calendario @@VERSION@@'; $s.Save()"
-
-echo.
-echo [5/6] Arranque con Windows
-choice /c SN /n /m "Quieres que el calendario arranque solo al encender el ordenador? [S/N] "
-if errorlevel 2 goto :sin_arranque
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$w=New-Object -ComObject WScript.Shell; $s=$w.CreateShortcut((Join-Path $w.SpecialFolders('Startup') 'Calendario.lnk')); $s.TargetPath='%PYWEXE%'; $s.Arguments='\"%INSTALL_DIR%\app\calendario.py\"'; $s.WorkingDirectory='%INSTALL_DIR%\app'; $s.IconLocation='%INSTALL_DIR%\app\icono.ico'; $s.WindowStyle=7; $s.Description='Calendario @@VERSION@@'; $s.Save()"
-echo       Hecho: arrancara solo al iniciar sesion.
-:sin_arranque
-
-echo.
-echo [6/6] Instalacion terminada. Todo ha quedado en esta carpeta:
-echo   %INSTALL_DIR%
-echo.
-
-if exist "%INSTALL_DIR%\datos\config.json" goto :arrancar_widget
-if exist "%INSTALL_DIR%\config.json" goto :arrancar_widget
-echo Ahora se abre el asistente para configurar tu calendario
-echo ^(enlace de Outlook o festivos, por ejemplo^). Cuando lo guardes,
-echo el programa se pondra en marcha solo.
-echo.
-pause
-start "" "%PYWEXE%" "%INSTALL_DIR%\app\configurar.py"
-goto :fin
-
-:arrancar_widget
-echo Ya tenias la configuracion hecha: se arranca el calendario.
-echo.
-pause
-start "" "%PYWEXE%" "%INSTALL_DIR%\app\calendario.py"
-
-:fin
+powershell -NoProfile -ExecutionPolicy Bypass -STA -File "%WORKDIR%\instalador.ps1" -Self "%SELF%" -DirPorDefecto "%INSTALL_DIR%" %*
+set "RC=%ERRORLEVEL%"
 rmdir /s /q "%WORKDIR%" >nul 2>&1
-exit /b 0
-
-:probar
-"%~1" -c "import sys, tkinter; sys.exit(0 if sys.version_info >= (3, 9) else 1)" >nul 2>&1
-if not errorlevel 1 set "PYEXE=%~1"
-exit /b 0
+rem (sin pause: -Silencioso es para scripts y no debe quedarse esperando una tecla)
+exit /b %RC%
 
 :::PSSTART
-param([string]$self, [string]$dest)
-$enc = New-Object System.Text.UTF8Encoding($false)
-$lines = [System.IO.File]::ReadAllLines($self, $enc)
-$i = 0
-while ($i -lt $lines.Length) {
-    $l = $lines[$i]
-    if ($l.StartsWith(':::BEGIN ')) {
-        $partes = $l.Substring(9).Trim().Split('|')
-        $rel = $partes[0]
-        $modo = $partes[1]
-        $j = $i + 1
-        $buf = New-Object System.Collections.Generic.List[string]
-        while ($j -lt $lines.Length -and -not $lines[$j].StartsWith(':::END')) {
-            $buf.Add($lines[$j])
-            $j++
-        }
-        $destino = Join-Path $dest $rel
-        $carpeta = Split-Path -Parent $destino
-        if (-not (Test-Path -LiteralPath $carpeta)) {
-            New-Item -ItemType Directory -Path $carpeta -Force | Out-Null
-        }
-        if ($modo -eq 'b64') {
-            [System.IO.File]::WriteAllBytes($destino, [Convert]::FromBase64String(($buf -join '')))
-        } else {
-            [System.IO.File]::WriteAllText($destino, (($buf -join "`r`n") + "`r`n"), $enc)
-        }
-        $i = $j
-    }
-    $i++
-}
+@@WIZARD@@
 :::PSEND
 
 @@BANNER@@

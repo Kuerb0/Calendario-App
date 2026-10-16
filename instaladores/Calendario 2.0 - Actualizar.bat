@@ -215,7 +215,7 @@ while ($i -lt $lines.Length) {
                                                                     V E R S I Ó N   2.0
 :::TITULOEND
 
-:::BEGIN app/calendario.py|text
+:::BEGIN app/calendario.py|text|fc6157943cdee7a068d55c5766cd43a772592e75ef51bf7958bf538c227d8942
 """
 Widget de calendario de Outlook para el escritorio de Windows.
 
@@ -11824,7 +11824,7 @@ if __name__ == "__main__":
                 a.exc_type, a.exc_value, a.exc_traceback)).splitlines()))
     _ventana.mainloop()
 :::END
-:::BEGIN app/configurar.py|text
+:::BEGIN app/configurar.py|text|1561b55f6e2f7d2bda7ae20bd7c94b01f672f357552c4f845ba4631b44bca267
 """Asistente de instalacion con ventana: rellena config.json paso a paso.
 
 Doble clic (o "python configurar.py"). Cada paso tiene un enlace "¿cómo se
@@ -12217,7 +12217,7 @@ class Asistente(tk.Tk):
 if __name__ == "__main__":
     Asistente().mainloop()
 :::END
-:::BEGIN app/extras.py|text
+:::BEGIN app/extras.py|text|704819e86bdb563d3b829d0a8a3f643104bed9136fdf15159600b7182d973b54
 """Extras del widget: Panel de control y Paleta de comandos.
 
 Los dos se pueden abrir como ventana aparte o anclados a un lado del widget
@@ -13598,7 +13598,7 @@ class PaletaComandos(PanelBase):
         except Exception:
             pass
 :::END
-:::BEGIN app/correo_columna.py|text
+:::BEGIN app/correo_columna.py|text|ad5edd394fbbf610c139b8194a110f4957020267b505e01042568aeee94f51f4
 """Columna de correo dentro del widget, junto a la lista y los to-dos.
 
 Enseña los correos más recientes de todas las carpetas mezclados, con chips
@@ -14569,7 +14569,7 @@ def _menu_chip(app, M, e, nombre):
     menu.tk_popup(e.x_root, e.y_root)
     return "break"
 :::END
-:::BEGIN app/menus.py|text
+:::BEGIN app/menus.py|text|f6a5c7801181aa145775a0de77785c677553e96fe2e3887ea7394e9c3b032a74
 """Menú emergente propio (clic derecho) para toda la aplicación.
 
 El menú de Windows que trae Tk es lento de abrir, no sigue el tema del
@@ -15084,7 +15084,7 @@ def instalar(M):
         _ORIGINAL(self, x, y, entry)
     tk.Menu.tk_popup = tk_popup
 :::END
-:::BEGIN app/requirements.txt|text
+:::BEGIN app/requirements.txt|text|bf5df86c55a2a8e9755db153f389eb574b746ec25a19b273a7c3921a5b859568
 requests
 icalendar
 recurring_ical_events
@@ -15095,10 +15095,10 @@ pillow
 winotify
 holidays
 :::END
-:::BEGIN app/VERSION.txt|text
+:::BEGIN app/VERSION.txt|text|efdfae9d0dc9b09f9524df6c401bf7143a882469c6243bfbcb0bbeaefe9aa3c1
 2.0.0
 :::END
-:::BEGIN app/icono.ico|b64
+:::BEGIN app/icono.ico|b64|a35c4e55e0a99693343e9b12218d45b3ad5742e1ffa1d9e15ab8c5c7150fc46e
 AAABAAcAEBAAAAAAIABTAwAAdgAAABgYAAAAACAArgUAAMkDAAAgIAAAAAAgABgIAAB3CQAAMDAA
 AAAAIADnDAAAjxEAAEBAAAAAACAA6Q8AAHYeAACAgAAAAAAgAHkdAABfLgAAAAAAAAAAIAAUCQAA
 2EsAAIlQTkcNChoKAAAADUlIRFIAAAAQAAAAEAgGAAAAH/P/YQAAAxpJREFUeJxdk01MXGUUhp/z
@@ -15482,7 +15482,7 @@ C/xKsNNiZ10KHOkV7SOtZfZjZ5Wx+VsLugTYOl0OjLwUiC4w3wp8WfR6Vsva+CfhAXAyIgiyFVdP
 9Dv4kiAguz00/sludvQcYUAWe2r6rV3u9DnCgNX22vRbu1/Aa4QCoxyh2QEAAAAAAAAAAAAAAACA
 Pfov0/NnCYl5laMAAAAASUVORK5CYII=
 :::END
-:::BEGIN app/ayuda/1-enlace-ics.txt|text
+:::BEGIN app/ayuda/1-enlace-ics.txt|text|6d21eaa218bcba0bbed56f3464263b17c05416202f9bd67217b4be91ec67fdff
 CÓMO CONSEGUIR EL ENLACE DE TU CALENDARIO (ICS)
 ===============================================
 
@@ -15536,7 +15536,7 @@ SI ALGO NO CUADRA
 - Si prefieres que los cambios se vean al instante, usa la otra opción del
   asistente: leer del Outlook instalado.
 :::END
-:::BEGIN app/ayuda/2-outlook-instalado.txt|text
+:::BEGIN app/ayuda/2-outlook-instalado.txt|text|28c0c8da95a81a4f3aa9445ceb8f94ca967daf1253c78dfcb5bffc3de6e31cb0
 LEER DEL OUTLOOK INSTALADO EN EL ORDENADOR
 ==========================================
 
@@ -15579,7 +15579,7 @@ mismos colores que en Outlook.
 Si un evento no tiene ninguna etiqueta puesta, sale con el color general
 del calendario.
 :::END
-:::BEGIN app/ayuda/3-festivos.txt|text
+:::BEGIN app/ayuda/3-festivos.txt|text|cfe6f8d4eaf2e9c6bba87390d1bc7dbdb8593c76aa9d158b199be4a0666abd7e
 LOS FESTIVOS
 ============
 
@@ -15618,7 +15618,7 @@ SI NO QUIERES FESTIVOS
 Deja el municipio en blanco y apaga los grupos que no te interesen desde el
 botón "Fest" del widget.
 :::END
-:::BEGIN app/ayuda/4-despues.txt|text
+:::BEGIN app/ayuda/4-despues.txt|text|9b1c54e6d95a026a4dec13a3ef34763858eed6556142d7ff1bf1bcccf9df30cc
 YA ESTÁ INSTALADO: QUÉ PUEDES HACER
 ===================================
 
@@ -15662,7 +15662,7 @@ SI ALGO FALLA
 Todos los ajustes se pueden cambiar luego desde el clic derecho del widget,
 o volviendo a ejecutar configurar.py.
 :::END
-:::BEGIN herramientas/descargar_python.ps1|text
+:::BEGIN herramientas/descargar_python.ps1|text|5fd9695107c90a52315badef90b8f524381b12a42f5b9f15e7fcfc8e3278828f
 # Descarga el instalador de Python para Windows (64 bits) a la ruta indicada.
 # Busca en python.org la version 3.13 mas reciente que tenga instalador y,
 # si no puede, prueba con una lista de versiones conocidas.
