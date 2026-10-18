@@ -475,8 +475,17 @@ def aplicar_perfil_activo(cfg):
     return True
 
 
+def asistente_si_es_exe():
+    """Compilado en .exe no hay consola donde pegar el enlace: se abre el asistente de configuracion y el .exe se reabre al terminar."""
+    if getattr(sys, "frozen", False):
+        import configurar
+        configurar.Asistente().mainloop()
+        sys.exit(0)
+
+
 def cargar_config():
     if not os.path.exists(CONFIG_PATH):
+        asistente_si_es_exe()
         with open(CONFIG_PATH, "w", encoding="utf-8") as f:
             json.dump(DEFAULTS, f, indent=2, ensure_ascii=False)
         print("Se ha creado config.json. Pega ahi tu enlace ICS y vuelve a ejecutar.")
@@ -514,6 +523,7 @@ def cargar_config():
     aplicar_perfil_activo(cfg)
     if cfg.get("origen") != "outlook" and not any(
             c.get("url") for c in cfg["calendarios"]):
+        asistente_si_es_exe()
         print("Falta la URL del calendario en config.json.")
         sys.exit(1)
     return cfg

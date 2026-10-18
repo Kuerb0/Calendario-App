@@ -11,6 +11,9 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 BASE = os.path.dirname(os.path.abspath(__file__))
+RECURSOS = getattr(sys, "_MEIPASS", BASE)      # en el .exe la ayuda va dentro; la config y el programa, junto al .exe
+if getattr(sys, "frozen", False):
+    BASE = os.path.dirname(os.path.abspath(sys.executable))
 
 
 def _carpeta_datos():
@@ -27,7 +30,7 @@ def _carpeta_datos():
 
 CONFIG = os.path.join(_carpeta_datos(), "config.json")
 CONFIG_ANTIGUA = os.path.join(os.path.dirname(BASE), "config.json")
-AYUDA = os.path.join(BASE, "ayuda")
+AYUDA = os.path.join(RECURSOS, "ayuda")
 
 COMUNIDADES = [
     ("AN", "Andalucía"), ("AR", "Aragón"), ("AS", "Asturias"),
@@ -381,8 +384,11 @@ class Asistente(tk.Tk):
 
         self.destroy()
         try:
-            subprocess.Popen([sys.executable.replace("python.exe", "pythonw.exe"),
-                              os.path.join(BASE, "calendario.py")], cwd=BASE)
+            if getattr(sys, "frozen", False):
+                subprocess.Popen([sys.executable], cwd=BASE)       # el .exe vuelve a abrirse, ya con config.json
+            else:
+                subprocess.Popen([sys.executable.replace("python.exe", "pythonw.exe"),
+                                  os.path.join(BASE, "calendario.py")], cwd=BASE)
         except Exception:
             pass
 

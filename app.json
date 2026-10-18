@@ -1,0 +1,35 @@
+{
+  "nombre": "Calendario",
+  "nombre_visible": "Calendario",
+  "version_fichero": "app/VERSION.txt",
+  "icono": "app/icono.ico",
+  "exe": {
+    "entrada": "app/calendario.py",
+    "paths": [
+      "app"
+    ],
+    "datos": [
+      "app/icono.ico:.",
+      "app/ayuda:ayuda"
+    ],
+    "incluir": [
+      "tkinter",
+      "PIL"
+    ],
+    "collect_all": [
+      "tzdata",
+      "holidays"
+    ],
+    "hidden_imports": [
+      "pystray._win32",
+      "extras",
+      "correo_columna",
+      "menus",
+      "configurar"
+    ],
+    "datos_usuario": [
+      "config.json",
+      "perfiles"
+    ]
+  }
+}
