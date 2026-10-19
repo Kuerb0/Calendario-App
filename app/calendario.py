@@ -1898,6 +1898,56 @@ def fondo_dia(i):
     return mezclar("#000000", C["fondo"], 0.30)
 
 
+def seguir_eventos_movidos(eventos):
+    """Las cuentas atrás y el evento fijado guardan una copia de la fecha del evento. Si el evento se mueve en el calendario, esa copia se
+    quedaba con la fecha vieja y la cuenta atrás no cambiaba. Aquí se vuelve a mirar el evento (por su UID) y se pone su fecha nueva.
+    En una serie repetida solo se sigue al evento si el más cercano es uno y se ve claro (a menos de una semana). Devuelve True si cambió algo."""
+    originales = [e for e in eventos if not e.parte]
+    cambio = False
+
+    def buscar(uid, momento):
+        propios = [e for e in originales if e.uid == uid]
+        if not propios:
+            return None                          # borrado, o fuera de lo que se descarga: se queda como estaba
+        propios.sort(key=lambda e: abs((e.inicio - momento).total_seconds()))
+        if len(propios) == 1:
+            return propios[0]
+        if abs((propios[0].inicio - momento).total_seconds()) == 0:
+            return propios[0]
+        cerca = abs((propios[0].inicio - momento).total_seconds())
+        if cerca <= 7 * 86400 and abs((propios[1].inicio - momento).total_seconds()) > cerca:
+            return propios[0]
+        return None
+
+    for c in CFG.get("cuentas_atras") or []:
+        try:
+            if not c.get("uid"):
+                continue
+            viejo = dt.datetime.combine(dt.date.fromisoformat(c["fecha"]), dt.time(), tzinfo=TZ)
+            exacto = [e for e in originales if e.uid == c["uid"] and e.inicio.date().isoformat() == c["fecha"]]
+            ev = exacto[0] if exacto else buscar(c["uid"], viejo + dt.timedelta(hours=12))
+            if ev is None:
+                continue
+            nuevo = {"fecha": ev.inicio.date().isoformat(), "hasta": ev.fin.isoformat()}
+            if any(c.get(k) != v for k, v in nuevo.items()):
+                c.update(nuevo)
+                cambio = True
+        except (ValueError, KeyError):
+            continue
+    a = CFG.get("anclado")
+    if a and a.get("uid"):
+        try:
+            ev = buscar(a["uid"], dt.datetime.fromisoformat(a["inicio"]))
+            if ev is not None and (a.get("inicio") != ev.inicio.isoformat() or a.get("titulo") != ev.titulo):
+                a["inicio"], a["titulo"] = ev.inicio.isoformat(), ev.titulo
+                cambio = True
+        except (ValueError, KeyError):
+            pass
+    if cambio:
+        guardar_config()
+    return cambio
+
+
 def cuentas_vigentes():
     """Cuentas atrás que aún no han pasado (las pasadas se borran solas)."""
     ahora = dt.datetime.now(TZ)
@@ -7808,8 +7858,16 @@ class Widget(tk.Tk):
             # sin red se reintenta cada poco, no dentro de media hora
             self.after(0, lambda: self.refrescar(
                 minutos=CFG.get("reintento_minutos", 1)))
-        self.after(0, self.dibujar)
+        self.after(0, self._tras_descargar)
         self.after(50, self._resumen_del_dia)
+
+    def _tras_descargar(self):
+        """Ya con los eventos nuevos: las cuentas atrás siguen a los eventos que se hayan movido, y se redibuja."""
+        try:
+            seguir_eventos_movidos(self.eventos)
+        except Exception as exc:
+            log(f"No se pudieron actualizar las cuentas atrás: {exc}")
+        self.dibujar()
 
     def refrescar_correo(self, minutos=None):
         """Igual que refrescar(), pero para el correo (si está activo)."""

@@ -61,6 +61,43 @@ def _():
     assert cal.cuenta_atras(pasado, ahora)
 
 
+@prueba("las cuentas atrás y el evento fijado siguen al evento cuando se mueve")
+def _():
+    guardado = cal.CFG.get("cuentas_atras"), cal.CFG.get("anclado"), cal.guardar_config
+    cal.guardar_config = lambda: None
+    try:
+        hoy = dt.datetime.now(cal.TZ).replace(hour=10, minute=0, second=0, microsecond=0)
+        a = hoy + dt.timedelta(days=5)
+        ev = cal.Evento(a, a + dt.timedelta(hours=1), "Viaje", False, "u1")
+        cal.CFG["cuentas_atras"] = [{"nombre": "Viaje", "fecha": a.date().isoformat(), "uid": "u1", "hasta": ev.fin.isoformat()}]
+        cal.CFG["anclado"] = {"uid": "u1", "titulo": "Viaje", "inicio": a.isoformat(), "color": "#fff"}
+        # sin cambios: no toca nada
+        assert not cal.seguir_eventos_movidos([ev])
+        # el evento se mueve tres días
+        b = a + dt.timedelta(days=3)
+        movido = cal.Evento(b, b + dt.timedelta(hours=1), "Viaje (nuevo)", False, "u1")
+        assert cal.seguir_eventos_movidos([movido])
+        c = cal.CFG["cuentas_atras"][0]
+        assert c["fecha"] == b.date().isoformat() and c["hasta"] == movido.fin.isoformat(), c
+        assert cal.CFG["anclado"]["inicio"] == b.isoformat() and cal.CFG["anclado"]["titulo"] == "Viaje (nuevo)"
+        # un evento distinto con otro UID no se confunde
+        otro = cal.Evento(b, b + dt.timedelta(hours=1), "Otro", False, "u2")
+        cal.CFG["cuentas_atras"] = [{"nombre": "Viaje", "fecha": a.date().isoformat(), "uid": "u1"}]
+        cal.CFG["anclado"] = None
+        assert not cal.seguir_eventos_movidos([otro])
+        assert cal.CFG["cuentas_atras"][0]["fecha"] == a.date().isoformat()
+        # serie repetida: si la ocurrencia sigue en su sitio, no se cambia a otra
+        serie = [cal.Evento(a + dt.timedelta(days=7 * k), a + dt.timedelta(days=7 * k, hours=1), "Clase", False, "s") for k in range(4)]
+        cal.CFG["cuentas_atras"] = [{"nombre": "Clase", "fecha": (a + dt.timedelta(days=7)).date().isoformat(), "uid": "s", "hasta": serie[1].fin.isoformat()}]
+        assert not cal.seguir_eventos_movidos(serie)
+        # serie repetida: una ocurrencia movida un día se sigue (la más cercana es una sola)
+        serie[1] = cal.Evento(a + dt.timedelta(days=8), a + dt.timedelta(days=8, hours=1), "Clase", False, "s")
+        assert cal.seguir_eventos_movidos(serie)
+        assert cal.CFG["cuentas_atras"][0]["fecha"] == (a + dt.timedelta(days=8)).date().isoformat()
+    finally:
+        cal.CFG["cuentas_atras"], cal.CFG["anclado"], cal.guardar_config = guardado
+
+
 @prueba("el silenciador de notificaciones corta de verdad notificar()")
 def _():
     mensajes = []
