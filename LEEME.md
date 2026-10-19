@@ -122,11 +122,20 @@ Los datos son los mismos que usa el panel de correo (se actualizan cada pocos
 minutos), y hace falta el Outlook clásico. La columna no sale en la vista de
 mes.
 
+## Unión con Post-It
+
+Con [Post-It](https://github.com/Kuerb0/Post-It-App) 1.1 o superior, las dos apps se pasan las citas por una carpeta común (`AgendaCompartida`, que se detecta o se crea junto a la app; se cambia en Panel de control › Sistema › Post-It):
+
+- Las líneas de tus notas con hora (`18:30`, `10:00-11:30`, `a las 9`) salen en el Calendario como eventos amarillos (con ✓ si la tarea está marcada).
+- Los eventos de los próximos 14 días se escriben en la carpeta y Post-It los muestra en la nota «Agenda del Calendario».
+
+Cada equipo escribe solo su fichero (`notas-<equipo>.json`, `agenda-<equipo>.json`), así que OneDrive no genera copias en conflicto. Código en `app/sincronizar.py`, prueba en `herramientas/test_sincronizar.py`.
+
 ## Estructura de carpetas
 
 | Carpeta | Qué contiene |
 |---|---|
-| `app/` | El programa: `calendario.py`, `configurar.py`, `extras.py` (panel de control y paleta), `correo_columna.py` (correo dentro del widget), `menus.py` (menú de clic derecho), `icono.ico`, `ayuda/`, `requirements.txt`, `VERSION.txt`. |
+| `app/` | El programa: `calendario.py`, `configurar.py`, `extras.py` (panel de control y paleta), `correo_columna.py` (correo dentro del widget), `menus.py` (menú de clic derecho), `sincronizar.py` (unión con Post-It), `icono.ico`, `ayuda/`, `requirements.txt`, `VERSION.txt`. |
 | `datos/` | **Tus datos**: `config.json` (ajustes y tareas permanentes), su copia `config.json.bak`, `perfiles/` y `anteriores/` (copias que deja el actualizador). |
 | `instaladores/` | Los dos `.bat` autoextraíbles (se generan con `herramientas/generar_instaladores.py`). |
 | `herramientas/` | Para quien mantiene el programa: generador de instaladores, `tests_calendario.py`, `crear_exe.bat`, `limpiar_restos.bat` y las plantillas de los `.bat`. |

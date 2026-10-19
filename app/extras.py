@@ -1101,6 +1101,17 @@ class PanelControl(PanelBase):
                            self._poner_ubicacion(c, v, a),
                            activo=actual == valor, lado="left")
 
+        self.seccion(p, "Post-It")
+        self.casilla(p, "Unir las notas de Post-It con el Calendario",
+                     lambda: M.CFG.get("sincronizar_postit", True),
+                     lambda: app._alternar_sync_postit())
+        self.etiqueta(p, "Carpeta: " + (app._carpeta_compartida() or "ninguna"),
+                      tenue=True).pack(fill="x")
+        f = self.fila_botones(p)
+        self.boton(f, "Cambiar carpeta compartida",
+                   self._y_dibujar(app._elegir_carpeta_sync),
+                   lado="left")
+
         self.seccion(p, "Copias y carpetas")
         f = self.fila_botones(p)
         self.boton(f, "Copia de la configuración", lambda: app._copia_config(),

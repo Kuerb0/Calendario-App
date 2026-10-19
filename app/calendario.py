@@ -41,7 +41,9 @@ import requests
 import icalendar
 import recurring_ical_events
 
-VERSION = "2.0"
+import sincronizar
+
+VERSION = "2.1"
 
 # --------------------------------------------------------------------------
 # Configuracion
@@ -136,6 +138,10 @@ DEFAULTS = {
     "ics_url": "",
     "zona_horaria": "Europe/Madrid",
     "refresco_minutos": 30,
+    # Post-It <-> Calendario por una carpeta compartida (sincronizar.py)
+    "sincronizar_postit": True,
+    "carpeta_compartida": "",
+    "color_postit": "#e0b400",
     "avisos_minutos": [60, 10],
     "hora_inicio": 8,
     "hora_fin": 22,
@@ -1360,6 +1366,7 @@ def _asignar(grupo):
 
 
 def guardar_cache(eventos):
+    eventos = [e for e in eventos if e.categoria != "postit"]
     try:
         # atomico: el hilo de descarga y el principal pueden coincidir, y una
         # cache pickle a medias hace que al arrancar no se vea nada
@@ -5737,6 +5744,8 @@ class Widget(tk.Tk):
     def __init__(self):
         super().__init__()
         self.eventos = leer_cache()
+        self._firma_postit = None        # firma de las notas de Post-It ya unidas a self.eventos
+        self._carpeta_sync = None
         self.avisados = set()
         self.desplazamiento = 0          # dias de desfase respecto a la ventana de hoy
         self.actualizado = None          # hora de la ultima descarga correcta
@@ -5917,6 +5926,7 @@ class Widget(tk.Tk):
         self.after(700, self._restaurar_posicion)
         self.after(20_000, self._vigilar_pantallas)
         self.refrescar()
+        self.after(2000, self._sincronizar)   # notas de Post-It, cada 15 s
         self.after(1200, self.refrescar_correo)
         self.tic()
         self.dibujar()
@@ -7846,6 +7856,7 @@ class Widget(tk.Tk):
             eventos = descargar_eventos()
             repartir_columnas([e for e in eventos if not e.todo_dia])
             self.eventos = eventos
+            self._firma_postit = None
             self.actualizado = dt.datetime.now(TZ)
             guardar_cache(eventos)
             self.error_red = ""
@@ -7863,11 +7874,61 @@ class Widget(tk.Tk):
 
     def _tras_descargar(self):
         """Ya con los eventos nuevos: las cuentas atrás siguen a los eventos que se hayan movido, y se redibuja."""
+        self._sincronizar(reprogramar=False)
         try:
             seguir_eventos_movidos(self.eventos)
         except Exception as exc:
             log(f"No se pudieron actualizar las cuentas atrás: {exc}")
         self.dibujar()
+
+    # ---- Post-It <-> Calendario por una carpeta compartida (sincronizar.py)
+    def _carpeta_compartida(self):
+        if self._carpeta_sync is None:
+            raiz = os.path.dirname(BASE) if os.path.basename(BASE).lower() == "app" else BASE
+            self._carpeta_sync = sincronizar.resolver_carpeta(CFG.get("carpeta_compartida") or None, raiz)[0] or ""
+        return self._carpeta_sync
+
+    def _sincronizar(self, reprogramar=True):
+        """Une las notas de Post-It a self.eventos (si cambiaron) y escribe la agenda para Post-It.
+        Cada 15 s y sin red: solo lee y escribe unos ficheros pequeños."""
+        if reprogramar:
+            self.after(15000, self._sincronizar)
+        try:
+            carpeta = self._carpeta_compartida() if CFG.get("sincronizar_postit", True) else ""
+            sin_notas = [e for e in self.eventos if e.categoria != "postit"]
+            if not carpeta:
+                if len(sin_notas) != len(self.eventos):
+                    self.eventos = sin_notas
+                    self.dibujar()
+                return
+            firma = sincronizar.firma_notas(carpeta)
+            if firma != self._firma_postit:
+                self._firma_postit = firma
+                notas = sincronizar.leer_notas(carpeta, TZ, Evento, CFG.get("color_postit"))
+                self.eventos = sorted(sin_notas + notas, key=lambda e: e.inicio)
+                repartir_columnas([e for e in self.eventos if not e.todo_dia])
+                self.dibujar()
+            sincronizar.escribir_agenda(carpeta, self.eventos + list(self._festivos), dt.datetime.now(TZ))
+        except Exception as exc:
+            log(f"Sincronización con Post-It: {exc}")
+
+    def _alternar_sync_postit(self):
+        CFG["sincronizar_postit"] = not CFG.get("sincronizar_postit", True)
+        guardar_config()
+        self._firma_postit = None
+        self._sincronizar(reprogramar=False)
+        return "break"
+
+    def _elegir_carpeta_sync(self):
+        from tkinter import filedialog
+        ruta = filedialog.askdirectory(parent=self, title="Carpeta compartida con Post-It",
+                                       initialdir=self._carpeta_compartida() or None)
+        if ruta:
+            CFG["carpeta_compartida"] = os.path.normpath(ruta)
+            guardar_config()
+            self._carpeta_sync = None
+            self._firma_postit = None
+            self._sincronizar(reprogramar=False)
 
     def refrescar_correo(self, minutos=None):
         """Igual que refrescar(), pero para el correo (si está activo)."""

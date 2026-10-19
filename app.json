@@ -25,7 +25,8 @@
       "extras",
       "correo_columna",
       "menus",
-      "configurar"
+      "configurar",
+      "sincronizar"
     ],
     "datos_usuario": [
       "config.json",

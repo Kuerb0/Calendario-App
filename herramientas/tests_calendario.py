@@ -589,6 +589,36 @@ def _():
         w.destroy()
 
 
+@prueba("Post-It: las notas con hora entran como eventos y la agenda sale a la carpeta compartida")
+def _():
+    import json, tempfile
+    carpeta = tempfile.mkdtemp()
+    manana = (dt.datetime.now(cal.TZ) + dt.timedelta(days=1)).replace(hour=18, minute=30, second=0, microsecond=0)
+    json.dump({"version": 1, "equipo": "OTRO", "items": [{"id": "postit:n:a", "titulo": "Dentista", "hecho": False,
+               "inicio": manana.replace(tzinfo=None).isoformat(), "fin": None}]},
+              open(os.path.join(carpeta, "notas-OTRO.json"), "w", encoding="utf-8"))
+    antes = cal.CFG.get("carpeta_compartida"), cal.guardar_config
+    cal.CFG["carpeta_compartida"] = carpeta
+    cal.guardar_config = lambda: None
+    w = cal.Widget()
+    try:
+        w.update()
+        w.refrescar = lambda *a, **k: None       # sin red
+        w.eventos = [cal.Evento(manana.replace(hour=9), manana.replace(hour=10), "Reunión", False, "r1")]
+        w._carpeta_sync = None
+        w._firma_postit = None
+        w._sincronizar(reprogramar=False)
+        assert [(e.titulo, e.categoria) for e in w.eventos] == [("Reunión", None), ("Dentista", "postit")], w.eventos
+        agenda = json.load(open(os.path.join(carpeta, "agenda-%s.json" % cal.sincronizar.equipo()), encoding="utf-8"))
+        assert [e["titulo"] for e in agenda["eventos"]] == ["Reunión"], agenda    # lo de Post-It no vuelve a Post-It
+        os.remove(os.path.join(carpeta, "notas-OTRO.json"))
+        w._sincronizar(reprogramar=False)                                         # ya no hay notas: desaparecen
+        assert [e.titulo for e in w.eventos] == ["Reunión"], w.eventos
+    finally:
+        cal.CFG["carpeta_compartida"], cal.guardar_config = antes
+        w.destroy()
+
+
 if __name__ == "__main__":
     print(f"Ejecutando {len(PRUEBAS)} pruebas de calendario.py...\n")
     for p in PRUEBAS:
