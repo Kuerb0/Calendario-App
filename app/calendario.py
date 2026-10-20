@@ -43,7 +43,7 @@ import recurring_ical_events
 
 import sincronizar
 
-VERSION = "2.2"
+VERSION = "2.3"
 
 # --------------------------------------------------------------------------
 # Configuracion
@@ -1905,12 +1905,29 @@ def fondo_dia(i):
     return mezclar("#000000", C["fondo"], 0.30)
 
 
-def seguir_eventos_movidos(eventos):
-    """Las cuentas atrás y el evento fijado guardan una copia de la fecha del evento. Si el evento se mueve en el calendario, esa copia se
-    quedaba con la fecha vieja y la cuenta atrás no cambiaba. Aquí se vuelve a mirar el evento (por su UID) y se pone su fecha nueva.
-    En una serie repetida solo se sigue al evento si el más cercano es uno y se ve claro (a menos de una semana). Devuelve True si cambió algo."""
+def seguir_eventos_movidos(eventos, rango=None):
+    """Las cuentas atrás y el evento fijado guardan una copia de la fecha y el nombre del evento. Aquí se vuelve a mirar el evento
+    (por su UID) y se ponen su fecha y su nombre de ahora. En una serie repetida solo se sigue al evento si el más cercano es uno y
+    se ve claro (a menos de una semana).
+    rango: (ini, fin) que cubre 'eventos' entero. Si se da, lo que estaba dentro y ya no aparece se ha borrado: se quita la cuenta
+    atrás (o el fijado). Sin rango no se quita nada, porque el evento podría estar fuera de lo descargado. Devuelve True si cambió algo."""
     originales = [e for e in eventos if not e.parte]
+    uids = {e.uid for e in originales}
     cambio = False
+
+    def borrado(uid, momento):
+        # «ficha-…» es el UID provisional de un evento recién creado aquí: tras descargar, Outlook le da otro
+        return (rango is not None and uid not in uids and not str(uid).startswith("ficha-")
+                and rango[0] <= momento < rango[1])
+
+    def adoptar(uid, nombre, fecha):
+        """UID real del evento que tenía el provisional «ficha-…»: el del mismo nombre ese día o, si no, el único con ese nombre."""
+        if not str(uid).startswith("ficha-") or uid in uids:
+            return uid
+        iguales = [e for e in originales if sin_acentos(e.titulo).strip() == sin_acentos(nombre).strip()]
+        ese_dia = [e for e in iguales if e.inicio.date().isoformat() == fecha]
+        candidatos = ese_dia or iguales
+        return candidatos[0].uid if len({e.uid for e in candidatos}) == 1 else uid
 
     def buscar(uid, momento):
         propios = [e for e in originales if e.uid == uid]
@@ -1926,16 +1943,24 @@ def seguir_eventos_movidos(eventos):
             return propios[0]
         return None
 
-    for c in CFG.get("cuentas_atras") or []:
+    for c in list(CFG.get("cuentas_atras") or []):
         try:
             if not c.get("uid"):
                 continue
             viejo = dt.datetime.combine(dt.date.fromisoformat(c["fecha"]), dt.time(), tzinfo=TZ)
+            real = adoptar(c["uid"], c.get("nombre", ""), c["fecha"])
+            if real != c["uid"]:
+                c["uid"] = real
+                cambio = True
+            if borrado(c["uid"], viejo + dt.timedelta(hours=12)):
+                CFG["cuentas_atras"].remove(c)
+                cambio = True
+                continue
             exacto = [e for e in originales if e.uid == c["uid"] and e.inicio.date().isoformat() == c["fecha"]]
             ev = exacto[0] if exacto else buscar(c["uid"], viejo + dt.timedelta(hours=12))
             if ev is None:
                 continue
-            nuevo = {"fecha": ev.inicio.date().isoformat(), "hasta": ev.fin.isoformat()}
+            nuevo = {"fecha": ev.inicio.date().isoformat(), "hasta": ev.fin.isoformat(), "nombre": ev.titulo}
             if any(c.get(k) != v for k, v in nuevo.items()):
                 c.update(nuevo)
                 cambio = True
@@ -1944,8 +1969,16 @@ def seguir_eventos_movidos(eventos):
     a = CFG.get("anclado")
     if a and a.get("uid"):
         try:
-            ev = buscar(a["uid"], dt.datetime.fromisoformat(a["inicio"]))
-            if ev is not None and (a.get("inicio") != ev.inicio.isoformat() or a.get("titulo") != ev.titulo):
+            momento = dt.datetime.fromisoformat(a["inicio"])
+            real = adoptar(a["uid"], a.get("titulo", ""), momento.date().isoformat())
+            if real != a["uid"]:
+                a["uid"] = real
+                cambio = True
+            ev = buscar(a["uid"], momento)
+            if borrado(a["uid"], momento):
+                CFG["anclado"] = None
+                cambio = True
+            elif ev is not None and (a.get("inicio") != ev.inicio.isoformat() or a.get("titulo") != ev.titulo):
                 a["inicio"], a["titulo"] = ev.inicio.isoformat(), ev.titulo
                 cambio = True
         except (ValueError, KeyError):
@@ -6681,11 +6714,13 @@ class Widget(tk.Tk):
         duracion = ev.fin - ev.inicio
         ev.inicio, ev.fin = nuevo_inicio, nuevo_inicio + duracion
         repartir_columnas([e for e in self.eventos if not e.todo_dia])
+        self._seguir_cuentas()
         self.dibujar()
 
         def deshacer():
             ev.inicio, ev.fin = antes, antes_fin
             repartir_columnas([e for e in self.eventos if not e.todo_dia])
+            self._seguir_cuentas()
 
         self._escribir_en_outlook(lambda: mover_en_outlook(ev, nuevo_inicio),
                                   deshacer, "No se ha podido mover")
@@ -7875,11 +7910,17 @@ class Widget(tk.Tk):
     def _tras_descargar(self):
         """Ya con los eventos nuevos: las cuentas atrás siguen a los eventos que se hayan movido, y se redibuja."""
         self._sincronizar(reprogramar=False)
+        # sin red (o si no ha llegado nada) no se sabe qué se ha borrado: solo se siguen los movidos
+        self._seguir_cuentas(rango_descarga() if self.eventos and not self.error_red else None)
+        self.dibujar()
+
+    def _seguir_cuentas(self, rango=None):
+        """Las cuentas atrás y el evento fijado, al día con self.eventos (tras descargar o tras cambiar un evento aquí)."""
         try:
-            seguir_eventos_movidos(self.eventos)
+            if seguir_eventos_movidos(self.eventos, rango):
+                self._tam = None             # la barra puede cambiar de alto si aparece o se va una cuenta atrás
         except Exception as exc:
             log(f"No se pudieron actualizar las cuentas atrás: {exc}")
-        self.dibujar()
 
     # ---- Post-It <-> Calendario por una carpeta compartida (sincronizar.py)
     def _carpeta_compartida(self):
@@ -9605,7 +9646,7 @@ class Widget(tk.Tk):
         if nuevo:
             ev = Evento(datos["inicio"], datos["fin"], datos["titulo"],
                         datos["todo_dia"],
-                        f"ficha-{id_outlook or len(self.eventos)}",
+                        f"ficha-{id_outlook or os.urandom(4).hex()}",
                         id_outlook=id_outlook)
             self.eventos.append(ev)
             copia = None
@@ -9620,6 +9661,7 @@ class Widget(tk.Tk):
         if ev.categoria:
             ev.color = self._color_de_categoria(ev.categoria) or ev.color
         repartir_columnas([e for e in self.eventos if not e.todo_dia])
+        self._seguir_cuentas()
         self.dibujar()
         AvisoFlotante(self, ev.titulo[:36],
                       f"Guardado · {fecha_corta(ev.inicio)}"
@@ -9643,6 +9685,7 @@ class Widget(tk.Tk):
                 ev.lugar, ev.notas = copia["lugar"], copia["notas"]
                 ev.categoria = copia["categoria"] or None
             repartir_columnas([e for e in self.eventos if not e.todo_dia])
+            self._seguir_cuentas()
 
         self._escribir_en_outlook(escribir, deshacer,
                                   "No se ha podido guardar el evento")
@@ -10098,6 +10141,8 @@ class Widget(tk.Tk):
         self.eventos = [e for e in self.eventos
                         if not (e.uid == ev.uid and e.inicio == ev.inicio)]
         guardar_cache(self.eventos)
+        # solo cuenta como borrado lo de ese día (otras fechas de una serie siguen ahí)
+        self._seguir_cuentas((ev.inicio - dt.timedelta(hours=12), ev.inicio + dt.timedelta(hours=36)))
         self.dibujar()
         AvisoFlotante(self, f"Eliminado: {ev.titulo[:30]}",
                       "Está en Elementos eliminados de Outlook por si acaso",

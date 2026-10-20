@@ -94,6 +94,36 @@ def _():
         serie[1] = cal.Evento(a + dt.timedelta(days=8), a + dt.timedelta(days=8, hours=1), "Clase", False, "s")
         assert cal.seguir_eventos_movidos(serie)
         assert cal.CFG["cuentas_atras"][0]["fecha"] == (a + dt.timedelta(days=8)).date().isoformat()
+        # renombrado: la cuenta atrás toma el nombre nuevo
+        cal.CFG["cuentas_atras"] = [{"nombre": "Viaje", "fecha": a.date().isoformat(), "uid": "u1", "hasta": ev.fin.isoformat()}]
+        assert cal.seguir_eventos_movidos([cal.Evento(a, ev.fin, "Viaje a Roma", False, "u1")])
+        assert cal.CFG["cuentas_atras"][0]["nombre"] == "Viaje a Roma"
+        # borrado: sin rango (sin red) se queda; con rango que lo cubre se quita, igual que el fijado
+        cal.CFG["anclado"] = {"uid": "u1", "titulo": "Viaje", "inicio": a.isoformat(), "color": "#fff"}
+        rango = (a - dt.timedelta(days=30), a + dt.timedelta(days=30))
+        assert not cal.seguir_eventos_movidos([otro]) and cal.CFG["cuentas_atras"] and cal.CFG["anclado"]
+        assert cal.seguir_eventos_movidos([otro], rango)
+        assert cal.CFG["cuentas_atras"] == [] and cal.CFG["anclado"] is None
+        # fuera del rango descargado, o con el UID provisional de un evento recién creado, no se da por borrado
+        cal.CFG["cuentas_atras"] = [{"nombre": "Lejos", "fecha": (a + dt.timedelta(days=90)).date().isoformat(), "uid": "u1"},
+                                    {"nombre": "Nuevo", "fecha": a.date().isoformat(), "uid": "ficha-3"}]
+        assert not cal.seguir_eventos_movidos([otro], rango) and len(cal.CFG["cuentas_atras"]) == 2
+        # UID provisional «ficha-…» de un evento creado aquí: toma el UID real del evento con ese nombre y desde ahí lo sigue
+        b = a + dt.timedelta(days=2)
+        real = cal.Evento(b, b + dt.timedelta(hours=1), "Examen Simulación", False, "OUTLOOK-1")
+        cal.CFG["cuentas_atras"] = [{"nombre": "Examen Simulacion", "fecha": a.date().isoformat(), "uid": "ficha-90"}]
+        assert cal.seguir_eventos_movidos([real, otro], rango)
+        c = cal.CFG["cuentas_atras"][0]
+        assert (c["uid"], c["fecha"], c["nombre"]) == ("OUTLOOK-1", b.date().isoformat(), "Examen Simulación"), c
+        # con dos eventos distintos del mismo nombre y ninguno ese día, no se adivina
+        dos = [cal.Evento(b, b, "Examen", False, "X1"), cal.Evento(b + dt.timedelta(days=9), b, "Examen", False, "X2")]
+        cal.CFG["cuentas_atras"] = [{"nombre": "Examen", "fecha": a.date().isoformat(), "uid": "ficha-1"}]
+        assert not cal.seguir_eventos_movidos(dos, rango) and cal.CFG["cuentas_atras"][0]["uid"] == "ficha-1"
+        # evento de todo el día borrado desde la app (rango de ese día)
+        dia = dt.datetime.combine(a.date(), dt.time(), tzinfo=cal.TZ)
+        cal.CFG["cuentas_atras"] = [{"nombre": "Cumple", "fecha": dia.date().isoformat(), "uid": "c1"}]
+        assert cal.seguir_eventos_movidos([], (dia - dt.timedelta(hours=12), dia + dt.timedelta(hours=36)))
+        assert cal.CFG["cuentas_atras"] == []
     finally:
         cal.CFG["cuentas_atras"], cal.CFG["anclado"], cal.guardar_config = guardado
 
