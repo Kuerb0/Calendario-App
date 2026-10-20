@@ -1,4 +1,4 @@
-# Widget de calendario para el escritorio de Windows
+﻿# Widget de calendario para el escritorio de Windows
 
 ![El widget con eventos de ejemplo](docs/captura.png)
 
@@ -124,11 +124,10 @@ mes.
 
 ## Unión con Post-It
 
-Con [Post-It](https://github.com/Kuerb0/Post-It-App) 1.1 o superior, las dos apps se pasan las citas por una carpeta común (`AgendaCompartida`, que se detecta o se crea junto a la app; se cambia en Panel de control › Sistema › Post-It):
+Con [Post-It](https://github.com/Kuerb0/Post-It-App) 1.4 o superior, las dos apps se pasan las citas por una carpeta común (`AgendaCompartida`, que se detecta o se crea junto a la app; se cambia en Panel de control › Sistema › Post-It):
 
-- Las líneas de tus notas con hora (`18:30`, `10:00-11:30`, `a las 9`) salen en el Calendario como eventos amarillos (con ✓ si la tarea está marcada).
-- Los eventos de la última semana y del próximo mes se escriben en la carpeta. Post-It muestra los de los próximos días en la nota «Agenda del Calendario» y, en las notas unidas (botón 📅 de la nota), los de cada fecha debajo de esa fecha.
-- En las notas unidas, las tareas apuntadas bajo una fecha (`Lunes 19/10`) salen también sin hora, como tareas de todo el día.
+- En las notas unidas (botón 📅 de la nota), las líneas con hora (`18:30`, `10:00-11:30`, `a las 9`) que estén debajo de una fecha (`Jueves 22/10`) salen en el Calendario como eventos amarillos de ese día (con ✓ si la tarea está marcada). Sin hora o sin fecha encima, no salen.
+- Los eventos de la última semana y del próximo mes se escriben en la carpeta. Post-It muestra los de los próximos días en la nota «Agenda del Calendario» y, en las notas unidas, los de cada fecha debajo de esa fecha.
 
 Cada equipo escribe solo su fichero (`notas-<equipo>.json`, `agenda-<equipo>.json`), así que OneDrive no genera copias en conflicto. Código en `app/sincronizar.py`, prueba en `herramientas/test_sincronizar.py`.
 
