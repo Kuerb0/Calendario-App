@@ -34,6 +34,7 @@ ARCHIVOS = [
     ("app/extras.py", "text"),
     ("app/correo_columna.py", "text"),
     ("app/menus.py", "text"),
+    ("app/sincronizar.py", "text"),
     ("app/requirements.txt", "text"),
     ("app/VERSION.txt", "text"),
     ("app/icono.ico", "b64"),
