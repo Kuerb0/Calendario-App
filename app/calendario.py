@@ -43,7 +43,7 @@ import recurring_ical_events
 
 import sincronizar
 
-VERSION = "2.1"
+VERSION = "2.2"
 
 # --------------------------------------------------------------------------
 # Configuracion

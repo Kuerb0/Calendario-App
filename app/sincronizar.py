@@ -15,7 +15,8 @@ import socket
 
 NOMBRE_CARPETA = "AgendaCompartida"
 PREFIJO_POSTIT = "postit:"      # los eventos que vienen de Post-It no se devuelven a Post-It
-DIAS_AGENDA = 14
+DIAS_AGENDA = 31
+DIAS_ATRAS = 7                  # las notas unidas también muestran los eventos de días ya pasados
 
 
 def equipo():
@@ -92,11 +93,15 @@ def leer_notas(carpeta, tz, crear_evento, color=None):
             if ini is None or not uid or uid in vistos or not str(it.get("titulo") or "").strip():
                 continue
             vistos.add(uid)
+            todo_dia = bool(it.get("todo_dia"))     # tarea apuntada bajo una fecha, sin hora
             fin = _local(it.get("fin"), tz)
-            if fin is None or fin <= ini:
+            if todo_dia:
+                ini = ini.replace(hour=0, minute=0, second=0)
+                fin = ini + dt.timedelta(days=1)
+            elif fin is None or fin <= ini:
                 fin = ini + dt.timedelta(hours=1)
             titulo = ("✓ " if it.get("hecho") else "") + str(it["titulo"]).strip()
-            eventos.append(crear_evento(ini, fin, titulo, False, uid,
+            eventos.append(crear_evento(ini, fin, titulo, todo_dia, uid,
                                         categoria="postit", color=color, notas="Viene de una nota de Post-It"))
     return eventos
 
@@ -109,8 +114,8 @@ def escribir_agenda(carpeta, eventos, ahora, nombre=None, dias=DIAS_AGENDA):
     """Escribe agenda-<equipo>.json con los eventos de los próximos días. Devuelve True si cambió el fichero.
     Se saltan los que vienen de Post-It y los trozos de continuación de un evento largo."""
     nombre = nombre or equipo()
-    desde = ahora.replace(hour=0, minute=0, second=0, microsecond=0)
-    hasta = desde + dt.timedelta(days=dias)
+    hoy = ahora.replace(hour=0, minute=0, second=0, microsecond=0)
+    desde, hasta = hoy - dt.timedelta(days=DIAS_ATRAS), hoy + dt.timedelta(days=dias)
     lista, vistos = [], set()
     for e in sorted(eventos, key=lambda x: x.inicio):
         uid = str(e.uid or e.titulo)
