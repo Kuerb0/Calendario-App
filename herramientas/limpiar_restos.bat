@@ -32,7 +32,7 @@ echo   - carpetas __pycache__, tests, ayuda y _to_delete antiguas
 echo.
 echo NO toca: datos, app, instaladores, herramientas, docs, .git, tu
 echo configuracion antigua ^(config.json y perfiles, o sus copias .migrado^)
-echo ni LEEME.md.
+echo ni README.md.
 echo.
 echo IMPORTANTE: antes debes haber ejecutado el instalador o el actualizador
 echo nuevo ^(carpeta "instaladores"^), para que el acceso directo del
