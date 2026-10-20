@@ -51,4 +51,11 @@ raiz = tempfile.mkdtemp(); app = os.path.join(raiz, "Calendario"); os.makedirs(a
 assert S.resolver_carpeta(None, app, {}, raiz) == (os.path.join(raiz, "AgendaCompartida"), "creada")
 assert S.resolver_carpeta(None, app, {}, raiz)[1] == "detectada"
 assert S.resolver_carpeta(carpeta, app, {}, raiz) == (carpeta, "guardada")
+# --- datos del .exe: los de OneDrive\Calendario\datos si existen (con config.json); si no, None (junto al .exe)
+od = os.path.join(raiz, "OneDrive"); os.makedirs(os.path.join(od, "Calendario", "datos"))
+assert S.datos_compartidos({}, raiz) is None                              # carpeta vacía, sin config.json: no vale
+open(os.path.join(od, "Calendario", "datos", "config.json"), "w").write("{}")
+assert S.datos_compartidos({}, raiz) == os.path.join(od, "Calendario", "datos")
+assert S.datos_compartidos({"OneDrive": od}, tempfile.mkdtemp()) == os.path.join(od, "Calendario", "datos")
+assert S.datos_compartidos({}, tempfile.mkdtemp()) is None
 print("TEST OK")

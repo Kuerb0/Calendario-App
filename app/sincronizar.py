@@ -50,6 +50,19 @@ def resolver_carpeta(guardada=None, raiz=None, entorno=None, hogar=None):
         return None, "ninguna"
 
 
+def datos_compartidos(entorno=None, hogar=None):
+    """Carpeta «Calendario/datos» de OneDrive si ya existe (con su config.json): por ahí se comparten la configuración y los
+    perfiles entre equipos. Un .exe vive en local, así que sin esto sus datos no se sincronizarían. None si no hay."""
+    entorno = os.environ if entorno is None else entorno
+    hogar = hogar or os.path.expanduser("~")
+    raices = [entorno[k] for k in ("OneDrive", "OneDriveConsumer", "OneDriveCommercial") if entorno.get(k)]
+    for r in raices + [os.path.join(hogar, "OneDrive")]:
+        c = os.path.join(r, "Calendario", "datos")
+        if os.path.isfile(os.path.join(c, "config.json")):
+            return c
+    return None
+
+
 def _ficheros(carpeta, prefijo):
     try:
         nombres = sorted(n for n in os.listdir(carpeta) if n.startswith(prefijo + "-") and n.endswith(".json"))

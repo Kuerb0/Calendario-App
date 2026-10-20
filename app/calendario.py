@@ -43,7 +43,7 @@ import recurring_ical_events
 
 import sincronizar
 
-VERSION = "2.3"
+VERSION = "2.3.1"
 
 # --------------------------------------------------------------------------
 # Configuracion
@@ -77,9 +77,12 @@ LOCAL = carpeta_local()
 def carpeta_datos():
     """Donde viven config.json y perfiles/: tus datos, aparte del programa.
 
-    Con la estructura ordenada (app/ + datos/) van en ../datos. Si el programa
-    está suelto o compilado en un .exe, se quedan junto a él, como siempre.
+    Con la estructura ordenada (app/ + datos/) van en ../datos. Compilado en un
+    .exe (que vive en local) van en OneDrive\\Calendario\\datos si ya existe, para
+    seguir compartiéndose entre equipos; si no, junto al .exe. Suelto: junto a él.
     """
+    if getattr(sys, "frozen", False):
+        return sincronizar.datos_compartidos() or BASE
     if (os.path.basename(BASE).lower() == "app"
             and not getattr(sys, "frozen", False)):
         ruta = os.path.join(os.path.dirname(BASE), "datos")
