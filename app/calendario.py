@@ -322,7 +322,7 @@ DEFAULTS = {
     # "normal" (una ventana mas) o "encima" (siempre visible sobre todo)
     "nivel_ventana": "fondo",
     # que el widget solo se vea en el escritorio virtual donde se activó
-    "solo_un_escritorio": False,
+    "solo_un_escritorio": True,
     "escritorio_id": None,
     # raya blanca a la izquierda de cada lunes (si no, la tenue de siempre)
     "semana_blanca": True,
@@ -7282,7 +7282,9 @@ class Widget(tk.Tk):
         if self.hwnd and self.visible:
             actual, todos = escritorios_virtuales()
             fijo = CFG.get("escritorio_id")
-            if fijo and fijo not in todos:      # el escritorio se borró: adopta el actual
+            # sin escritorio guardado (o ya no existe, o es de otro equipo): adopta el actual
+            if (CFG.get("solo_un_escritorio") and actual
+                    and (not fijo or fijo not in todos)):
                 fijo = CFG["escritorio_id"] = actual
                 guardar_config()
             fuera = bool(CFG.get("solo_un_escritorio") and actual and fijo
@@ -7297,6 +7299,19 @@ class Widget(tk.Tk):
                                         else win32con.SW_SHOWNA)
                 except Exception:
                     pass
+                # los paneles y fichas (sin botón en la barra) también salen en todos los escritorios
+                if fuera:
+                    self._ocultas = [h for h in self.winfo_children()
+                                     if isinstance(h, tk.Toplevel) and h.state() == "normal"]
+                    for h in self._ocultas:
+                        h.withdraw()
+                else:
+                    for h in getattr(self, "_ocultas", []):
+                        try:
+                            h.deiconify()
+                        except Exception:
+                            pass
+                    self._ocultas = []
         self.after(300, self._vigilar_escritorio)
 
     def _alternar_un_escritorio(self):
