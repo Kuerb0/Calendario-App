@@ -46,11 +46,37 @@ datos = json.load(open(os.path.join(carpeta, "agenda-PC1.json"), encoding="utf-8
 assert [e["titulo"] for e in datos["eventos"]] == ["Pasado", "Cumple", "Reunión", "Reunión"], datos
 assert len({e["id"] for e in datos["eventos"]}) == 4 and datos["eventos"][1]["todo_dia"] and datos["eventos"][2]["inicio"] == "2026-10-19T10:00:00"
 
-# --- carpeta: la guardada manda; si no, la hermana de la app; si no, se crea
+# --- carpeta: la guardada manda; si no, la elegida en este equipo (o la de Post-It); si no, «Carpeta de Sincronización» en OneDrive;
+#     si no, la antigua «AgendaCompartida» si es la que existe; si no, se crea
 raiz = tempfile.mkdtemp(); app = os.path.join(raiz, "Calendario"); os.makedirs(app)
-assert S.resolver_carpeta(None, app, {}, raiz) == (os.path.join(raiz, "AgendaCompartida"), "creada")
+assert S.resolver_carpeta(None, app, {}, raiz) == (os.path.join(raiz, "Carpeta de Sincronización"), "creada")
 assert S.resolver_carpeta(None, app, {}, raiz)[1] == "detectada"
 assert S.resolver_carpeta(carpeta, app, {}, raiz) == (carpeta, "guardada")
+vieja = tempfile.mkdtemp(); os.makedirs(os.path.join(vieja, "AgendaCompartida"))
+assert S.resolver_carpeta(None, os.path.join(vieja, "Calendario"), {}, vieja) == (os.path.join(vieja, "AgendaCompartida"), "antigua")   # solo existe la de antes: se sigue usando
+os.makedirs(os.path.join(vieja, "Carpeta de Sincronización"))
+assert S.resolver_carpeta(None, os.path.join(vieja, "Calendario"), {}, vieja) == (os.path.join(vieja, "Carpeta de Sincronización"), "detectada")   # la nueva gana
+local = tempfile.mkdtemp(); elegida = tempfile.mkdtemp()
+assert S.carpeta_elegida(local, {}) is None
+S.guardar_carpeta_elegida(local, elegida)
+assert S.resolver_carpeta(None, app, {}, vieja, local=local) == (elegida, "elegida")
+assert S.resolver_carpeta(carpeta, app, {}, vieja, local=local) == (carpeta, "guardada")                      # lo escrito en config.json manda sobre todo
+S.guardar_carpeta_elegida(local, None)                                                                         # «sin sincronización»
+assert S.carpeta_elegida(local, {}) is None
+appdata = tempfile.mkdtemp(); os.makedirs(os.path.join(appdata, "post-it")); de_postit = tempfile.mkdtemp()
+json.dump({"sync": de_postit}, open(os.path.join(appdata, "post-it", "sync.json"), "w"))
+assert S.carpeta_elegida(local, {"APPDATA": appdata}) == de_postit                                             # sin la suya, usa la que Post-It ya tiene
+# con dos OneDrive (personal y de la organización) se crea en el personal
+pers = tempfile.mkdtemp(); org = tempfile.mkdtemp(); vacio = tempfile.mkdtemp()
+assert S.raices_onedrive({"OneDrive": org, "OneDriveConsumer": pers}, vacio)[:2] == [pers, org]
+assert S.resolver_carpeta(None, None, {"OneDrive": org, "OneDriveConsumer": pers}, vacio) == (os.path.join(pers, "Carpeta de Sincronización"), "creada")
+# --- config y perfiles dentro de la carpeta de sincronización: la primera vez se llevan los de antes y no se pisan después
+sync = tempfile.mkdtemp(); antes = tempfile.mkdtemp(); os.makedirs(os.path.join(antes, "perfiles"))
+open(os.path.join(antes, "config.json"), "w").write('{"origen": "ics"}'); open(os.path.join(antes, "perfiles", "a.json"), "w").write("{}")
+d = S.datos_en_sync(sync, [None, antes])
+assert d == os.path.join(sync, "Calendario") and open(os.path.join(d, "config.json")).read() == '{"origen": "ics"}' and os.path.isfile(os.path.join(d, "perfiles", "a.json"))
+open(os.path.join(d, "config.json"), "w").write('{"origen": "outlook"}')                                        # lo cambia otro equipo
+assert S.datos_en_sync(sync, [antes]) == d and open(os.path.join(d, "config.json")).read() == '{"origen": "outlook"}'   # y no se vuelve a pisar
 # --- datos del .exe: los de OneDrive\Calendario\datos si existen (con config.json); si no, None (junto al .exe)
 od = os.path.join(raiz, "OneDrive"); os.makedirs(os.path.join(od, "Calendario", "datos"))
 assert S.datos_compartidos({}, raiz) is None                              # carpeta vacía, sin config.json: no vale
@@ -58,4 +84,7 @@ open(os.path.join(od, "Calendario", "datos", "config.json"), "w").write("{}")
 assert S.datos_compartidos({}, raiz) == os.path.join(od, "Calendario", "datos")
 assert S.datos_compartidos({"OneDrive": od}, tempfile.mkdtemp()) == os.path.join(od, "Calendario", "datos")
 assert S.datos_compartidos({}, tempfile.mkdtemp()) is None
+# --- versiones: 2.4.1 > 2.4.0 > 2.3.9 · 2.10 > 2.9 · iguales no son mayores
+assert S.version_mayor("2.4.1", "2.4.0") and S.version_mayor("2.10", "2.9") and S.version_mayor("3.0", "2.99.9") and S.version_mayor("2.4.0.1", "2.4")
+assert not S.version_mayor("2.4.0", "2.4.0") and not S.version_mayor("2.3.9", "2.4.0") and not S.version_mayor("2.4", "2.4.0")
 print("TEST OK")

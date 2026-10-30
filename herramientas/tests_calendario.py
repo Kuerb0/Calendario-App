@@ -21,6 +21,9 @@ import tkinter as tk
 # el programa vive en ../app respecto a esta carpeta (herramientas/)
 sys.path.insert(0, os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "..", "app"))
+# las pruebas nunca deben escribir en la AgendaCompartida de verdad (la detectaria en tu OneDrive y pisaria tu agenda)
+import tempfile
+os.environ["AGENDA_COMPARTIDA"] = tempfile.mkdtemp(prefix="agenda_pruebas_")
 import calendario as cal
 
 PRUEBAS = []
@@ -637,16 +640,135 @@ def _():
         w.eventos = [cal.Evento(manana.replace(hour=9), manana.replace(hour=10), "Reunión", False, "r1")]
         w._carpeta_sync = None
         w._firma_postit = None
+        ruta_agenda = os.path.join(carpeta, "agenda-%s.json" % cal.sincronizar.equipo())
+        fin = time.monotonic() + 15
+        while not w.actualizado and time.monotonic() < fin:      # que termine la descarga del arranque
+            w.update()
+            time.sleep(0.05)
+        assert w.actualizado, "la descarga del arranque no termino"
+        time.sleep(0.3)                                          # y que se asiente lo que deja programado
+        w.update()
+        if os.path.exists(ruta_agenda):
+            os.remove(ruta_agenda)
+        w.actualizado = None                     # y se simula que aun no hay descarga correcta
+        w._sincronizar(reprogramar=False)
+        assert not os.path.exists(ruta_agenda), "sin descarga correcta no se escribe la agenda"
+        w.actualizado = dt.datetime.now(cal.TZ)
         w._sincronizar(reprogramar=False)
         assert [(e.titulo, e.categoria) for e in w.eventos] == [("Reunión", None), ("Dentista", "postit")], w.eventos
         agenda = json.load(open(os.path.join(carpeta, "agenda-%s.json" % cal.sincronizar.equipo()), encoding="utf-8"))
-        assert [e["titulo"] for e in agenda["eventos"]] == ["Reunión"], agenda    # lo de Post-It no vuelve a Post-It
+        propios = [e["titulo"] for e in agenda["eventos"] if not e["id"].startswith("festivo")]     # (los festivos reales del config entran según el día en que se prueba)
+        assert propios == ["Reunión"], agenda                                      # lo de Post-It no vuelve a Post-It
         os.remove(os.path.join(carpeta, "notas-OTRO.json"))
         w._sincronizar(reprogramar=False)                                         # ya no hay notas: desaparecen
         assert [e.titulo for e in w.eventos] == ["Reunión"], w.eventos
     finally:
         cal.CFG["carpeta_compartida"], cal.guardar_config = antes
         w.destroy()
+
+
+@prueba("Ayuda y atajos: cada apartado tiene titulo y filas (tecla, texto); la version del codigo es la de VERSION.txt")
+def _():
+    assert cal.Widget.AYUDA_GENERAL and all(isinstance(t, str) and t and filas for t, filas in cal.Widget.AYUDA_GENERAL)
+    assert all(len(f) == 2 and f[0] and f[1] for _, filas in cal.Widget.AYUDA_GENERAL for f in filas)
+    with open(os.path.join(os.path.dirname(os.path.abspath(cal.__file__)), "VERSION.txt"), encoding="utf-8") as f:
+        assert f.read().strip() == cal.VERSION
+
+
+@prueba("Outlook cerrado: con origen 'outlook' se espera (no se lanza ni se cae a ICS); con 'auto' se usan los ICS")
+def _():
+    def cerrado(ini, fin):
+        raise cal.OutlookCerrado("Outlook no está abierto")
+    antes = cal.leer_de_outlook, cal.CFG.get("origen"), cal.CFG.get("calendarios")
+    cal.leer_de_outlook, cal.CFG["calendarios"] = cerrado, []
+    try:
+        cal.CFG["origen"] = "outlook"
+        try:
+            cal.descargar_eventos()
+            raise AssertionError("debia propagar OutlookCerrado")
+        except cal.OutlookCerrado:
+            pass
+        cal.CFG["origen"] = "auto"
+        assert cal.descargar_eventos() == []
+    finally:
+        cal.leer_de_outlook, cal.CFG["origen"], cal.CFG["calendarios"] = antes
+
+
+@prueba("config por equipo: mover la ventana no reescribe config.json y lo de este PC va a equipo.json")
+def _():
+    import json, tempfile
+    d = tempfile.mkdtemp()
+    antes = cal.CONFIG_PATH, cal.EQUIPO_PATH, dict(cal.CFG)
+    cal.CONFIG_PATH, cal.EQUIPO_PATH = os.path.join(d, "config.json"), os.path.join(d, "equipo.json")
+    try:
+        cal.CFG["posicion_x"], cal.CFG["tema"] = 10, "oscuro"
+        assert cal.guardar_config()
+        compartido = json.load(open(cal.CONFIG_PATH, encoding="utf-8"))
+        assert compartido["posicion_x"] == 10                    # primera vez: lo que haya, por si el otro PC es de la version anterior
+        antes_mtime = os.stat(cal.CONFIG_PATH).st_mtime_ns
+        time.sleep(0.05)
+        cal.CFG["posicion_x"] = 999                              # mover la ventana
+        assert cal.guardar_config()
+        assert os.stat(cal.CONFIG_PATH).st_mtime_ns == antes_mtime, "config.json compartido reescrito al mover la ventana"
+        assert json.load(open(cal.EQUIPO_PATH, encoding="utf-8"))["posicion_x"] == 999
+        cal.CFG["tema"] = "claro"                                # un ajuste compartido si lo reescribe
+        assert cal.guardar_config()
+        compartido = json.load(open(cal.CONFIG_PATH, encoding="utf-8"))
+        assert compartido["tema"] == "claro" and compartido["posicion_x"] == 10
+        assert cal.leer_equipo()["posicion_x"] == 999            # al arrancar, lo de este PC manda
+    finally:
+        cal.CONFIG_PATH, cal.EQUIPO_PATH = antes[0], antes[1]
+        cal.CFG.clear(); cal.CFG.update(antes[2])
+        cal.recordar_disco()
+
+
+@prueba("estado: el latido solo se reescribe si cambia algo o pasa el plazo, y el informe avisa de lo que va mal")
+def _():
+    import json, tempfile
+    S = cal.sincronizar
+    d, dat = tempfile.mkdtemp(), tempfile.mkdtemp()
+    ahora = dt.datetime(2026, 10, 21, 20, 0, tzinfo=cal.TZ)
+    assert S.escribir_estado(d, {"app_version": "2.3.2", "outlook": "outlook"}, ahora, nombre="A")
+    assert not S.escribir_estado(d, {"app_version": "2.3.2", "outlook": "outlook"}, ahora, nombre="A"), "sin cambios no se reescribe"
+    assert S.escribir_estado(d, {"app_version": "2.3.2", "outlook": "cerrado"}, ahora, nombre="A"), "si cambia, sí"
+    # otro equipo: versión distinta, Outlook cerrado y sin publicar desde hace 3 h
+    json.dump({"version": 1, "app": "calendario", "equipo": "B", "app_version": "2.3.1", "outlook": "cerrado",
+               "escrito": "2026-10-21T17:00:00"}, open(os.path.join(d, "estado-calendario-B.json"), "w"))
+    for n in ("agenda-A.json", "agenda-A-B.json", "notas-B (1).json"):                # las dos últimas son copias en conflicto
+        json.dump({"version": 1, "eventos": []}, open(os.path.join(d, n), "w"))
+    open(os.path.join(dat, "config.json"), "w").write("{}")
+    open(os.path.join(dat, "config.json-B.bak"), "w").write("{}")
+    textos = [f"{n}:{t}" for n, t in S.informe(d, ahora, nombre="A", datos=dat, onedrive=False)]
+    junto = "\n".join(textos)
+    assert "mal:OneDrive no está en marcha" in junto, junto
+    assert "versiones distintas" in junto and "2.3.1" in junto and "2.3.2" in junto, junto
+    assert "En B Outlook está cerrado" in junto and "sin publicar desde hace 3 h" in junto, junto
+    assert S.copias_en_conflicto(d) == ["agenda-A-B.json", "notas-B (1).json"], S.copias_en_conflicto(d)
+    assert "config.json-B.bak" in junto, junto
+    limpio = tempfile.mkdtemp()
+    S.escribir_estado(limpio, {"app_version": "2.3.2"}, ahora, nombre="A")
+    assert [n for n, _ in S.informe(limpio, ahora, nombre="A", onedrive=True)] == ["ok", "ok"]
+
+
+@prueba("OneDrive: datos_compartidos espera a que llegue config.json, sin pasarse, y no espera si no hay carpeta Calendario")
+def _():
+    import json, tempfile, threading
+    S = cal.sincronizar
+    assert not S.esperar(lambda: False, segundos=0.2, pausa=0.05)
+    assert S.esperar(lambda: True, segundos=0.2)
+    raiz, vacio = tempfile.mkdtemp(), tempfile.mkdtemp()
+    entorno = {"OneDrive": raiz}
+    t0 = time.monotonic()
+    assert S.datos_compartidos(entorno, vacio, espera=5) is None
+    assert time.monotonic() - t0 < 1, "sin carpeta Calendario no hay nada que esperar"
+    datos = os.path.join(raiz, "Calendario", "datos")
+    os.makedirs(datos)                                   # OneDrive ya trajo la carpeta, aun no el config.json
+
+    def llega():
+        time.sleep(0.4)
+        json.dump({}, open(os.path.join(datos, "config.json"), "w"))
+    threading.Thread(target=llega, daemon=True).start()
+    assert S.datos_compartidos(entorno, vacio, espera=5) == datos
 
 
 if __name__ == "__main__":

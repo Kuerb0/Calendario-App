@@ -1105,12 +1105,24 @@ class PanelControl(PanelBase):
         self.casilla(p, "Unir las notas de Post-It con el Calendario",
                      lambda: M.CFG.get("sincronizar_postit", True),
                      lambda: app._alternar_sync_postit())
-        self.etiqueta(p, "Carpeta: " + (app._carpeta_compartida() or "ninguna"),
+        self.etiqueta(p, "Carpeta de sincronización: " + (app._carpeta_compartida() or "ninguna"),
                       tenue=True).pack(fill="x")
         f = self.fila_botones(p)
-        self.boton(f, "Cambiar carpeta compartida",
+        self.boton(f, "Cambiar carpeta de sincronización",
                    self._y_dibujar(app._elegir_carpeta_sync),
                    lado="left")
+        self.seccion(p, "Estado de la sincronización")
+        try:
+            lineas = M.sincronizar.informe(app._carpeta_compartida(), dt.datetime.now(M.TZ), version=M.VERSION,
+                                           datos=M.DATOS, onedrive=M.sincronizar.onedrive_en_marcha())
+            outlook = {"outlook": "Outlook abierto", "cerrado": "Outlook cerrado: se espera a que lo abras",
+                       "ics": "leyendo de los enlaces ICS"}.get(M.ESTADO["origen"])
+            if outlook:
+                lineas.insert(0, ("ok" if M.ESTADO["origen"] != "cerrado" else "aviso", "Este equipo: " + outlook))
+        except Exception as exc:
+            lineas = [("aviso", f"No se pudo calcular el estado: {exc}")]
+        for nivel, texto in lineas:
+            self.etiqueta(p, {"ok": "✔ ", "aviso": "⚠ ", "mal": "✖ "}[nivel] + texto, tenue=nivel == "ok").pack(fill="x")
 
         self.seccion(p, "Copias y carpetas")
         f = self.fila_botones(p)

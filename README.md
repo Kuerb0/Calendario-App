@@ -124,12 +124,25 @@ mes.
 
 ## Unión con Post-It
 
-Con [Post-It](https://github.com/Kuerb0/Post-It-App) 1.4 o superior, las dos apps se pasan las citas por una carpeta común (`AgendaCompartida`, que se detecta o se crea junto a la app; se cambia en Panel de control › Sistema › Post-It):
+Con [Post-It](https://github.com/Kuerb0/Post-It-App) 1.4 o superior, las dos apps se pasan las citas por una carpeta común: la **Carpeta de Sincronización** de OneDrive (la misma que usa Post-It; se elige en el instalador o en Panel de control › Sistema › Post-It). Si ya tenías la antigua `AgendaCompartida`, se sigue usando hasta que elijas otra:
 
 - En las notas unidas (botón 📅 de la nota), las líneas con hora (`18:30`, `10:00-11:30`, `a las 9`) que estén debajo de una fecha (`Jueves 22/10`) salen en el Calendario como eventos amarillos de ese día (con ✓ si la tarea está marcada). Sin hora o sin fecha encima, no salen.
 - Los eventos de la última semana y del próximo mes se escriben en la carpeta. Post-It muestra los de los próximos días en la nota «Agenda del Calendario» y, en las notas unidas, los de cada fecha debajo de esa fecha.
 
-Cada equipo escribe solo su fichero (`notas-<equipo>.json`, `agenda-<equipo>.json`), así que OneDrive no genera copias en conflicto. Código en `app/sincronizar.py`, prueba en `herramientas/test_sincronizar.py`.
+Cada equipo escribe solo su fichero (`notas-<equipo>.json`, `agenda-<equipo>.json`), así que OneDrive no genera copias en conflicto.
+
+**Configuración compartida:** con una carpeta de sincronización elegida, `config.json` y `perfiles/` viven dentro de ella, en `Calendario\` (la primera vez se copian los de antes, que no se tocan), y los ven todos tus equipos. Lo que es de cada ordenador (posición, tamaño, monitores, atajo) se queda en `%LOCALAPPDATA%\WidgetCalendario\equipo.json`, así que mover la ventana no reescribe la configuración común. La carpeta que usa cada equipo está en `%LOCALAPPDATA%\WidgetCalendario\sync.json` (el instalador o el botón del Panel de control la escriben). Código en `app/sincronizar.py`, prueba en `herramientas/test_sincronizar.py`.
+
+## Instalador (2.4)
+
+El instalador es un asistente de varias páginas: explica qué hace, pide la **carpeta de instalación** (local de cada equipo) y, aparte, la **carpeta de sincronización** (opcional, en OneDrive; se propone `Carpeta de Sincronización` del OneDrive personal). Además:
+
+- Si en la carpeta elegida ya hay Calendario, el botón final pasa a **Actualizar** o **Reinstalar**, y se conservan tu configuración y tus perfiles.
+- Nunca instala en la raíz de una unidad (`D:\` pasa a `D:\Calendario`), avisa si la unidad es extraíble o de red, y el desinstalador jamás borra una raíz.
+- Quita los accesos directos rotos de versiones anteriores y las entradas de «Aplicaciones» sin carpeta.
+- Al abrir, el Calendario avisa si hay una versión nueva en GitHub («Sí» descarga el instalador y lo abre); también en el clic derecho › *Buscar actualizaciones…*.
+- **Ayuda y atajos** (clic derecho o icono de la bandeja) reúne en una ventana los gestos, atajos y paneles.
+- Prueba del instalador: `powershell -File herramientas\test_instalador.ps1` (instala y actualiza en una carpeta temporal).
 
 ## Estructura de carpetas
 

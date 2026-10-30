@@ -43,7 +43,7 @@ import recurring_ical_events
 
 import sincronizar
 
-VERSION = "2.3.1"
+VERSION = "2.4.0"
 
 # --------------------------------------------------------------------------
 # Configuracion
@@ -80,9 +80,21 @@ def carpeta_datos():
     Con la estructura ordenada (app/ + datos/) van en ../datos. Compilado en un
     .exe (que vive en local) van en OneDrive\\Calendario\\datos si ya existe, para
     seguir compartiéndose entre equipos; si no, junto al .exe. Suelto: junto a él.
+
+    Con una carpeta de sincronización elegida (la del instalador, la del Panel de control o la de Post-It) mandan
+    «<carpeta>\\Calendario»: ahí viven config.json y perfiles/ para todos los equipos. La primera vez se llevan los de antes.
     """
+    sync = sincronizar.carpeta_elegida(LOCAL)
+    if sync:
+        antes = []
+        if os.path.basename(BASE).lower() == "app" and not getattr(sys, "frozen", False):
+            antes.append(os.path.join(os.path.dirname(BASE), "datos"))
+        antes.append(sincronizar.datos_compartidos())
+        ruta = sincronizar.datos_en_sync(sync, antes)
+        if ruta:
+            return ruta
     if getattr(sys, "frozen", False):
-        return sincronizar.datos_compartidos() or BASE
+        return sincronizar.datos_compartidos(espera=40) or BASE
     if (os.path.basename(BASE).lower() == "app"
             and not getattr(sys, "frozen", False)):
         ruta = os.path.join(os.path.dirname(BASE), "datos")
@@ -96,6 +108,7 @@ def carpeta_datos():
 
 DATOS = carpeta_datos()
 CONFIG_PATH = os.path.join(DATOS, "config.json")     # este sí se comparte
+EQUIPO_PATH = os.path.join(LOCAL, "equipo.json")     # lo de ESTE ordenador: no se comparte
 CACHE_PATH = os.path.join(LOCAL, "cache.pkl")
 LOG_PATH = os.path.join(LOCAL, "registro.txt")
 ICONO_PATH = (os.path.join(BASE, "icono.ico") if os.path.exists(
@@ -409,6 +422,21 @@ migrar_datos_antiguos()
 CLAVES_PERFIL = ("origen", "ics_url", "calendarios", "carpetas_outlook",
                  "carpeta_outlook", "carpetas_correo", "festivos",
                  "zona_horaria")
+# lo que depende de las pantallas de ESTE ordenador: vive en equipo.json (local). Mover la ventana ya no reescribe el
+# config.json que usan los dos PCs, que es lo que hacia que OneDrive creara copias en conflicto
+CLAVES_EQUIPO = ("posicion_x", "posicion_y", "posiciones", "anclado", "escala", "escala_letra", "nivel_ventana",
+                 "escritorio_id", "solo_un_escritorio", "atajo_global", "ancho_columna", "alto_hora", "ancho_hora",
+                 "alto_fila_v", "alto_celda_mes", "ancho_lista", "alto_max_lista", "ancho_todos", "ancho_correo",
+                 "barra_zoom")
+
+
+def leer_equipo():
+    """Los ajustes de este ordenador. Vacio si aun no hay equipo.json: valen los que traiga config.json."""
+    try:
+        with open(EQUIPO_PATH, encoding="utf-8") as f:
+            return {k: v for k, v in json.load(f).items() if k in CLAVES_EQUIPO}
+    except Exception:
+        return {}
 
 
 def nombre_de_fichero(nombre):
@@ -501,6 +529,7 @@ def cargar_config():
         sys.exit(0)
     with open(CONFIG_PATH, encoding="utf-8") as f:
         cfg = json.load(f)
+    cfg.update(leer_equipo())       # lo de este ordenador manda sobre lo que dejo el otro en config.json
     # completa claves que falten si actualizas el script
     for k, v in DEFAULTS.items():
         cfg.setdefault(k, v)
@@ -809,22 +838,30 @@ def guardar_config():
     sabe escribir, falla aqui y el fichero bueno sigue intacto.
     """
     sincronizar_avisos()        # que no pise lo que apuntaron en otro PC
+    datos = b""
     try:
-        texto = json.dumps(CFG, indent=2, ensure_ascii=False)
+        with open(CONFIG_PATH, "rb") as viejo:
+            datos = viejo.read()
+    except OSError:
+        pass
+    try:                        # lo de este ordenador va a equipo.json; en config.json se deja lo que ya hubiera (un PC con la
+        en_disco = json.loads(datos) if datos.strip() else {}     # version anterior lo sigue leyendo) para no reescribirlo al mover la ventana
+        compartido = {k: (en_disco[k] if k in CLAVES_EQUIPO and k in en_disco else v) for k, v in CFG.items()}
+        texto = json.dumps(compartido, indent=2, ensure_ascii=False)
+        equipo = json.dumps({k: CFG[k] for k in CLAVES_EQUIPO if k in CFG}, indent=2, ensure_ascii=False)
     except Exception as exc:
         log(f"NO SE PUDO SERIALIZAR la configuración ({exc}); "
             "no se toca config.json")
         return False
     try:
-        if os.path.exists(CONFIG_PATH):       # copia del anterior, por si acaso
-            try:
-                with open(CONFIG_PATH, "rb") as viejo:
-                    datos = viejo.read()
-                if datos.strip():
+        escribir_atomico(EQUIPO_PATH, equipo)
+        if datos.replace(b"\r\n", b"\n") != texto.encode("utf-8"):   # si no cambia nada compartido no se toca (OneDrive no sincroniza en balde)
+            if datos.strip():                 # copia del anterior, por si acaso
+                try:
                     escribir_atomico(CONFIG_PATH + ".bak", datos)
-            except Exception as exc:
-                log(f"No se pudo copiar config.json.bak ({exc})")
-        escribir_atomico(CONFIG_PATH, texto)
+                except Exception as exc:
+                    log(f"No se pudo copiar config.json.bak ({exc})")
+            escribir_atomico(CONFIG_PATH, texto)
         recordar_disco()
         return True
     except Exception as exc:
@@ -1213,12 +1250,25 @@ def _carpetas_elegidas(ns):
     return salida or [("Outlook", None, ns.GetDefaultFolder(9))]
 
 
+class OutlookCerrado(Exception):
+    """Outlook no esta abierto: no se lanza solo, se espera a que lo abras y se reintenta."""
+
+
+def outlook_abierto():
+    """El Outlook que ya esta en marcha. Dispatch lo lanzaria el solo, antes de que OneDrive y tu perfil esten listos."""
+    import pythoncom
+    import win32com.client
+    try:
+        return win32com.client.GetActiveObject("Outlook.Application")
+    except pythoncom.com_error:
+        raise OutlookCerrado("Outlook no está abierto: se espera a que lo abras") from None
+
+
 def leer_de_outlook(ini, fin):
     """Lee el calendario del Outlook clasico instalado (con sus categorias)."""
     import pythoncom
-    import win32com.client
     pythoncom.CoInitialize()
-    app = win32com.client.Dispatch("Outlook.Application")
+    app = outlook_abierto()
     ns = app.GetNamespace("MAPI")
     colores_generales = _colores_de_categorias(ns, " de la cuenta por defecto")
 
@@ -1309,6 +1359,9 @@ def _leer_carpeta(carpeta, nombre_cal, color_cal, ini, fin, colores_cat, etiquet
     return eventos
 
 
+ESTADO = {"origen": None}      # de dónde salieron los últimos eventos: "outlook", "ics" o "cerrado" (Outlook sin abrir)
+
+
 def descargar_eventos():
     """Junta los eventos de todos los calendarios activos."""
     ini, fin = rango_descarga()
@@ -1319,8 +1372,14 @@ def descargar_eventos():
             if eventos or origen == "outlook":
                 eventos.sort(key=lambda x: x.inicio)
                 log(f"Origen: Outlook instalado, {len(eventos)} eventos")
+                ESTADO["origen"] = "outlook"
                 return eventos
             log("Outlook no devolvió nada; se usan los enlaces ICS")
+        except OutlookCerrado as exc:
+            ESTADO["origen"] = "cerrado"
+            if origen == "outlook":
+                raise                      # solo Outlook: sin el no hay datos; se reintenta en reintento_minutos
+            log(f"{exc}; se usan los ICS")
         except Exception as exc:
             log(f"No se pudo leer del Outlook instalado ({exc}); se usan los ICS")
     eventos = []
@@ -1333,6 +1392,8 @@ def descargar_eventos():
             # que falle uno no debe dejar sin datos a los demas
             log(f"ERROR en '{conf.get('nombre', '?')}': {exc}")
     eventos.sort(key=lambda x: x.inicio)
+    if ESTADO["origen"] != "cerrado":
+        ESTADO["origen"] = "ics"
     log(f"Total entre {ini:%d/%m} y {fin:%d/%m}: {len(eventos)} eventos")
     return eventos
 
@@ -2679,9 +2740,8 @@ def listar_carpetas_correo_outlook():
 def descargar_correo():
     """(info de carpetas, {carpeta: [Correo,...]}) de todas las cuentas."""
     import pythoncom
-    import win32com.client
     pythoncom.CoInitialize()
-    ns = win32com.client.Dispatch("Outlook.Application").GetNamespace("MAPI")
+    ns = outlook_abierto().GetNamespace("MAPI")
     limite = CFG.get("correo_limite_lista", 15)
     info, mensajes = [], {}
     for nombre_cf, color_cf, carpeta in _carpetas_correo_elegidas(ns):
@@ -5954,6 +6014,7 @@ class Widget(tk.Tk):
         self.after(600, self._al_fondo)
         self.after(800, self._arrancar_bandeja)
         self.after(900, self._arrancar_atajo)
+        self.after(25000, self._comprobar_actualizacion_periodica)
         self._vigilar_senal()
         self._vigilar_tema()
         self._en_otro_escritorio = False
@@ -6093,6 +6154,8 @@ class Widget(tk.Tk):
             pystray.MenuItem("Buscar o ir a una fecha…",
                              en_hilo_tk(self._abrir_panel_ir)),
             pystray.MenuItem("Actualizar ahora", en_hilo_tk(self.refrescar)),
+            pystray.MenuItem("Ayuda y atajos…", en_hilo_tk(self._abrir_ayuda_general)),
+            pystray.MenuItem("Buscar actualizaciones…", en_hilo_tk(lambda: self._buscar_actualizacion(True))),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Calendario",
                              en_hilo_tk(lambda: self._cambiar_vista("rejilla")),
@@ -7659,6 +7722,8 @@ class Widget(tk.Tk):
                       accelerator="Ctrl+K")
         m.add_command(label="Panel de control…",
                       command=self._abrir_panel_control)
+        m.add_command(label="Ayuda y atajos…", command=self._abrir_ayuda_general)
+        m.add_command(label="Buscar actualizaciones…", command=lambda: self._buscar_actualizacion(True))
         m.add_separator()
 
         # -- Vista: cómo se ve el calendario
@@ -7916,8 +7981,8 @@ class Widget(tk.Tk):
         except Exception as exc:
             import traceback
             print("Error al descargar el calendario:", exc)
-            log("ERROR al descargar: " + traceback.format_exc().strip()
-                .replace("\n", " | "))
+            log(str(exc) if isinstance(exc, OutlookCerrado) else "ERROR al descargar: "
+                + traceback.format_exc().strip().replace("\n", " | "))
             self.error_red = str(exc)[:60] or "sin conexión"
             # sin red se reintenta cada poco, no dentro de media hora
             self.after(0, lambda: self.refrescar(
@@ -7944,7 +8009,7 @@ class Widget(tk.Tk):
     def _carpeta_compartida(self):
         if self._carpeta_sync is None:
             raiz = os.path.dirname(BASE) if os.path.basename(BASE).lower() == "app" else BASE
-            self._carpeta_sync = sincronizar.resolver_carpeta(CFG.get("carpeta_compartida") or None, raiz)[0] or ""
+            self._carpeta_sync = sincronizar.resolver_carpeta(CFG.get("carpeta_compartida") or None, raiz, local=LOCAL)[0] or ""
         return self._carpeta_sync
 
     def _sincronizar(self, reprogramar=True):
@@ -7967,7 +8032,12 @@ class Widget(tk.Tk):
                 self.eventos = sorted(sin_notas + notas, key=lambda e: e.inicio)
                 repartir_columnas([e for e in self.eventos if not e.todo_dia])
                 self.dibujar()
-            sincronizar.escribir_agenda(carpeta, self.eventos + list(self._festivos), dt.datetime.now(TZ))
+            if self.actualizado:     # antes de la primera descarga correcta (Outlook cerrado, OneDrive sin bajar) la agenda no se pisa con casi nada
+                sincronizar.escribir_agenda(carpeta, self.eventos + list(self._festivos), dt.datetime.now(TZ))
+            sincronizar.escribir_estado(carpeta, {         # el latido: cada equipo dice que está vivo, su versión y de dónde lee
+                "app_version": VERSION, "outlook": ESTADO["origen"],
+                "ultima_descarga": self.actualizado.replace(tzinfo=None, microsecond=0).isoformat() if self.actualizado else None,
+                "eventos": sum(1 for e in self.eventos if e.categoria != "postit")}, dt.datetime.now(TZ))
         except Exception as exc:
             log(f"Sincronización con Post-It: {exc}")
 
@@ -7979,15 +8049,156 @@ class Widget(tk.Tk):
         return "break"
 
     def _elegir_carpeta_sync(self):
-        from tkinter import filedialog
-        ruta = filedialog.askdirectory(parent=self, title="Carpeta compartida con Post-It",
+        from tkinter import filedialog, messagebox
+        ruta = filedialog.askdirectory(parent=self, title="Carpeta de sincronización (la misma que Post-It, en OneDrive)",
                                        initialdir=self._carpeta_compartida() or None)
         if ruta:
-            CFG["carpeta_compartida"] = os.path.normpath(ruta)
-            guardar_config()
+            # la elección es de ESTE equipo (otro tiene otra ruta de OneDrive): va a sync.json local, no al config.json compartido
+            sincronizar.guardar_carpeta_elegida(LOCAL, os.path.normpath(ruta))
+            if CFG.pop("carpeta_compartida", None) is not None:
+                guardar_config()
             self._carpeta_sync = None
             self._firma_postit = None
             self._sincronizar(reprogramar=False)
+            messagebox.showinfo("Carpeta de sincronización",
+                                "La agenda y Post-It usan ya esa carpeta.\n\nLa configuración y los perfiles se cargarán de "
+                                "«Calendario» dentro de ella la próxima vez que abras el Calendario (si aún no están, se copian los de ahora).",
+                                parent=self)
+
+    # ---- ayuda y atajos (todo lo que hay en el widget, en un sitio)
+    AYUDA_GENERAL = (
+        ("Moverte por el calendario", (
+            ("Rueda del ratón", "pasa de día en día (sobre la columna de horas, mueve el horario visible)"),
+            ("Mayús + rueda", "salta tantos días como tengas a la vista"),
+            ("Ctrl + rueda", "cambia el tamaño de todo el widget"),
+            ("Ctrl + Mayús + rueda", "cambia solo el tamaño de la letra"),
+            ("Doble clic en el divisor", "devuelve el reparto por defecto entre calendario y lista"),
+        )),
+        ("Comandos y paneles", (
+            ("Ctrl + K  ·  botón ⌘", "paleta de comandos: escribe lo que quieras hacer (cambiar de vista, ir a una fecha como «18/9» o «mañana», abrir un panel, saltar a un evento por su título) y pulsa Intro"),
+            ("Botón ⚙  ·  clic derecho › Panel de control", "siete pestañas: Vista, Barra, Avisos, Agenda, Correo, Eventos y Sistema"),
+            ("Ctrl + Alt + C", "mostrar u ocultar el widget desde cualquier programa (el atajo se cambia en el config; «null» lo desactiva)"),
+            ("Esc", "cierra el panel o el diálogo que tengas abierto"),
+            ("Ctrl + Intro", "guarda el evento que estás escribiendo"),
+        )),
+        ("Eventos", (
+            ("Clic derecho en un evento", "editarlo, abrirlo en Outlook, posponerlo, eliminarlo o ponerle una «Alarma antes…» (5 a 60 minutos, o la que quieras; puede haber varias)"),
+            ("Pasar el ratón", "enseña el detalle del evento"),
+            ("Panel de control › Eventos", "los próximos 30 días con buscador y filtro por calendario, y las listas de solapes y de eventos repetidos"),
+        )),
+        ("Ventana", (
+            ("Clic derecho › Ventana y copias", "siempre encima, normal o al fondo sobre el escritorio, clics que atraviesan (modo fondo) y «Solo en este escritorio virtual»"),
+            ("Botón de la cabecera de un panel", "lo cambia entre ventana aparte y anclado a la izquierda o a la derecha del widget"),
+            ("Icono de la bandeja", "clic para mostrar u ocultar; clic derecho para cambiar la vista, buscar una fecha, rescatar la ventana si no la encuentras o salir"),
+        )),
+        ("Datos y varios equipos", (
+            ("Carpeta de sincronización", "Panel de control › Sistema › Post-It. Es una carpeta de OneDrive (la misma en cada equipo) donde Calendario y Post-It dejan cada uno sus ficheros; así no hay copias en conflicto. La configuración y los perfiles viven dentro, en «Calendario»"),
+            ("Esta configuración es de cada equipo", "posición, tamaño, monitores y atajo no se comparten: mover la ventana no toca la configuración común"),
+            ("Perfiles", "botón 👤 o clic derecho › Perfil: cada persona guarda sus datos de cuenta (origen de los eventos, ICS, festivos) y se cambia de uno a otro sin volver a escribirlos"),
+            ("Post-It", "las notas unidas (botón 📅 de la nota) mandan aquí sus líneas con hora como eventos, y reciben los eventos de cada fecha"),
+        )),
+        ("Actualizaciones", (
+            ("Aviso al abrir", "si hay una versión nueva en GitHub te lo dice una vez; «Sí» descarga el instalador y lo abre. Tu configuración y tus perfiles se conservan"),
+            ("Clic derecho › Buscar actualizaciones…", "lo comprueba cuando quieras"),
+        )),
+    )
+
+    def _abrir_ayuda_general(self):
+        if getattr(self, "_ayuda_general", None) is not None:
+            try:
+                self._ayuda_general.deiconify()
+                self._ayuda_general.lift()
+                return
+            except tk.TclError:
+                self._ayuda_general = None
+        v = tk.Toplevel(self)
+        self._ayuda_general = v
+        v.title("Calendario · ayuda y atajos")
+        v.configure(bg=C["fondo"])
+        v.geometry("720x560")
+        v.bind("<Escape>", lambda e: v.destroy())
+        v.protocol("WM_DELETE_WINDOW", v.destroy)
+        marco = tk.Frame(v, bg=C["fondo"])
+        marco.pack(fill="both", expand=True, padx=10, pady=10)
+        barra = tk.Scrollbar(marco)
+        barra.pack(side="right", fill="y")
+        t = tk.Text(marco, wrap="word", bg=C["fondo"], fg=C["texto"], relief="flat", padx=8, pady=6,
+                    font=letra(10), yscrollcommand=barra.set, cursor="arrow")
+        t.pack(side="left", fill="both", expand=True)
+        barra.config(command=t.yview)
+        t.tag_configure("seccion", foreground=C["texto_tenue"], font=letra(9, "bold"), spacing1=14, spacing3=4)
+        t.tag_configure("clave", font=letra(10, "bold"))
+        t.tag_configure("tenue", foreground=C["texto_tenue"])
+        t.insert("end", "Ayuda y atajos  ", "clave")
+        t.insert("end", "(Esc para cerrar)\n", "tenue")
+        for titulo, filas in self.AYUDA_GENERAL:
+            t.insert("end", titulo.upper() + "\n", "seccion")
+            for clave, texto in filas:
+                t.insert("end", clave, "clave")
+                t.insert("end", "  " + texto + "\n")
+        t.insert("end", "\nVersión " + VERSION + "  ·  github.com/Kuerb0/Calendario-App\n", "tenue")
+        t.config(state="disabled")
+
+    def _comprobar_actualizacion_periodica(self):
+        self._buscar_actualizacion(False)
+        self.after(6 * 3600 * 1000, self._comprobar_actualizacion_periodica)
+
+    # ---- aviso de versión nueva: se mira la VERSION.txt publicada en GitHub (no se manda ningún dato). «Sí» baja el instalador de
+    # esa versión y lo abre; él conserva datos y perfiles. Se pregunta una vez por versión (o siempre que se pida a mano).
+    def _buscar_actualizacion(self, a_mano=False):
+        import threading
+
+        def trabajo():
+            try:
+                with requests.get("https://raw.githubusercontent.com/Kuerb0/Calendario-App/main/app/VERSION.txt", timeout=15) as r:
+                    r.raise_for_status()
+                    nueva = r.text.strip()
+                self.after(0, lambda: self._ofrecer_actualizacion(nueva, a_mano))
+            except Exception as exc:
+                if a_mano:
+                    self.after(0, lambda: self._avisar("No se pudo comprobar las actualizaciones.\n\n%s" % exc))
+
+        threading.Thread(target=trabajo, daemon=True).start()
+
+    def _avisar(self, texto):
+        from tkinter import messagebox
+        messagebox.showinfo("Calendario", texto, parent=self)
+
+    def _ofrecer_actualizacion(self, nueva, a_mano):
+        from tkinter import messagebox
+        if not sincronizar.version_mayor(nueva, VERSION):
+            if a_mano:
+                self._avisar("Tienes la última versión (%s)." % VERSION)
+            return
+        marca = os.path.join(LOCAL, "aviso_version.txt")        # la última versión por la que ya se preguntó (de este equipo)
+        try:
+            with open(marca, encoding="utf-8") as f:
+                ya = f.read().strip()
+        except OSError:
+            ya = ""
+        if not a_mano and ya == nueva:
+            return
+        try:
+            with open(marca, "w", encoding="utf-8") as f:
+                f.write(nueva)
+        except OSError:
+            pass
+        if not messagebox.askyesno("Calendario", "Hay una versión nueva del Calendario (%s); tienes la %s.\n\n"
+                                   "¿Descargar el instalador y abrirlo ahora? Tu configuración y tus perfiles se conservan."
+                                   % (nueva, VERSION), parent=self):
+            return
+        try:
+            nombre = "Calendario %s - Instalador.exe" % nueva
+            url = "https://github.com/Kuerb0/Calendario-App/raw/main/instaladores/" + requests.utils.quote(nombre)
+            destino = os.path.join(os.environ.get("TEMP", LOCAL), nombre)
+            with requests.get(url, timeout=120, stream=True) as r:
+                r.raise_for_status()
+                with open(destino, "wb") as f:
+                    for trozo in r.iter_content(65536):
+                        f.write(trozo)
+            os.startfile(destino)
+        except Exception as exc:
+            self._avisar("No se pudo descargar el instalador.\n\n%s" % exc)
 
     def refrescar_correo(self, minutos=None):
         """Igual que refrescar(), pero para el correo (si está activo)."""
@@ -8017,8 +8228,8 @@ class Widget(tk.Tk):
             self.correo_error = ""
         except Exception as exc:
             import traceback
-            log("ERROR al descargar correo: " + traceback.format_exc().strip()
-                .replace("\n", " | "))
+            log(str(exc) if isinstance(exc, OutlookCerrado) else "ERROR al descargar correo: "
+                + traceback.format_exc().strip().replace("\n", " | "))
             self.correo_error = str(exc)[:60] or "sin Outlook"
         self.after(0, self.dibujar)
         panel = getattr(self, "_panel_correo", None)

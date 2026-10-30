@@ -64,6 +64,11 @@ ASISTENTE = {
     "VERSION_FILE": 'app\\VERSION.txt',
     "PORTAL_PREFIJO": 'Calendario',
     "ICONO_PNG": 'app/icono.ico',
+    # pagina de sincronizacion del asistente: carpeta comun con Post-It (OneDrive\Carpeta de Sincronizacion), distinta de la del programa
+    "CON_SYNC": "1",
+    "SYNC_CONFIG": r'LOCALAPPDATA|WidgetCalendario\sync.json',      # donde la app lee que carpeta de sincronizacion usa este equipo
+    "SYNC_QUE": "tu agenda y tu configuración",
+    "SYNC_PATRON": r"^(agenda|notas|estado-calendario)-.+\.json$|^Calendario$",
 }
 
 PLANTILLAS_BAT = [
@@ -222,7 +227,9 @@ def cuervo_png(altura=180):
 # lo que no se indica en ASISTENTE (cada app puede cambiarlo)
 DEFECTOS = {"VERSION_RE": "", "PY_MIN": "3.10", "PY_IMPORT": "", "PIP_POST": "", "PRIMERA_VEZ": "", "PRIMERA_SENAL": "",
             "PIP_EXTRA": "", "EXTRA_IMPORT": "", "IMPORTS": "", "REQS": "", "CARPETAS": [], "DATOS": "",
-            "PORTAL_URL": "https://kuerb0.github.io/portal/webs.json"}
+            "PORTAL_URL": "https://kuerb0.github.io/portal/webs.json",
+            "TIPO": "python", "ELECTRON_VERSION": "", "ELECTRON_ANTIGUO": "", "SIN_ARRANQUE": "", "CARPETA_ANTIGUA": "",
+            "CON_SYNC": "", "CON_CALENDARIO": "", "SYNC_CONFIG": "", "SYNC_QUE": "", "SYNC_PATRON": ""}
 
 
 def nombre_png(nombre):
