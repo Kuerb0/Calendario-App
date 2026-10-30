@@ -24,6 +24,10 @@ sys.path.insert(0, os.path.join(
 # las pruebas nunca deben escribir en la AgendaCompartida de verdad (la detectaria en tu OneDrive y pisaria tu agenda)
 import tempfile
 os.environ["AGENDA_COMPARTIDA"] = tempfile.mkdtemp(prefix="agenda_pruebas_")
+# ni lo local de este equipo ni la carpeta de sincronizacion elegida (la de Post-It o la del Calendario): si no, calendario.py
+# resolveria la de verdad en tu OneDrive y copiaria alli la configuracion de desarrollo (datos/config.json)
+os.environ["LOCALAPPDATA"] = tempfile.mkdtemp(prefix="local_pruebas_")
+os.environ["APPDATA"] = tempfile.mkdtemp(prefix="appdata_pruebas_")
 import calendario as cal
 
 PRUEBAS = []

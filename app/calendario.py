@@ -43,7 +43,7 @@ import recurring_ical_events
 
 import sincronizar
 
-VERSION = "2.4.0"
+VERSION = "2.4.1"
 
 # --------------------------------------------------------------------------
 # Configuracion
@@ -8116,6 +8116,7 @@ class Widget(tk.Tk):
         v.title("Calendario · ayuda y atajos")
         v.configure(bg=C["fondo"])
         v.geometry("720x560")
+        v.attributes("-topmost", True)          # el widget puede estar «encima de todo» y taparía la ayuda
         v.bind("<Escape>", lambda e: v.destroy())
         v.protocol("WM_DELETE_WINDOW", v.destroy)
         marco = tk.Frame(v, bg=C["fondo"])
