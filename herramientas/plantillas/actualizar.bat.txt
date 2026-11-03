@@ -6,13 +6,10 @@ color 0F
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command "[Console]::OutputEncoding=[Text.Encoding]::UTF8; $l=[IO.File]::ReadAllLines('%~f0',[Text.Encoding]::UTF8); $a=[Array]::IndexOf($l,':::BANNERSTART'); $b=[Array]::IndexOf($l,':::BANNEREND'); foreach($t in $l[($a+1)..($b-1)]){ $p=$t.Split([char]0xA7); Write-Host -NoNewline $p[0] -ForegroundColor DarkCyan; if($p.Length -gt 1){ Write-Host -NoNewline 'O' -ForegroundColor DarkYellow; Write-Host $p[1] -ForegroundColor DarkCyan } else { Write-Host '' } }; $a=[Array]::IndexOf($l,':::TITULOSTART'); $b=[Array]::IndexOf($l,':::TITULOEND'); $l[($a+1)..($b-1)] | ForEach-Object { Write-Host $_ -ForegroundColor White }"
 echo.
-echo Esto sustituye el programa por la version nueva, EN ESTA MISMA
-echo CARPETA, y instala las librerias que falten. No toca tu
-echo configuracion ni tus perfiles ^(carpeta datos^).
+echo Esto cierra el Calendario, sustituye el programa por la version nueva,
+echo EN ESTA MISMA CARPETA, instala las librerias que falten y lo vuelve a
+echo abrir. No toca tu configuracion ni tus perfiles ^(carpeta datos^).
 echo.
-echo Cierra antes el widget: icono de la bandeja ^> Salir.
-echo.
-pause
 
 set "SELF=%~f0"
 set "SELF_DIR=%~dp0"
@@ -34,6 +31,11 @@ exit /b 1
 
 :hay_instalacion
 if not exist "%WORKDIR%" mkdir "%WORKDIR%" >nul 2>&1
+
+echo.
+echo Cerrando el Calendario si estaba abierto...
+set "VJ_DIR=%INSTALL_DIR%"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$d=[regex]::Escape($env:VJ_DIR.TrimEnd('\'))+'(\\|[\x22]|\s|$)'; Get-CimInstance Win32_Process | Where-Object { $_.Name -match '^(python|pythonw)\.exe$' -and $_.CommandLine -match $d } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }; Start-Sleep -Milliseconds 700"
 
 echo.
 echo [1/5] Guardando una copia de lo anterior, por si acaso...
@@ -96,14 +98,23 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "$w=New-Object -ComObject
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$v=Join-Path ([Environment]::GetFolderPath('Startup')) 'Calendario.vbs'; if(Test-Path -LiteralPath $v){ $t=[IO.File]::ReadAllText($v); $t=$t.Replace('%INSTALL_DIR%\calendario.py','%INSTALL_DIR%\app\calendario.py').Replace('CurrentDirectory = \"%INSTALL_DIR%\"','CurrentDirectory = \"%INSTALL_DIR%\app\"'); [IO.File]::WriteAllText($v,$t) }"
 
 echo.
-echo Actualizacion terminada.
-echo Abre el calendario desde el acceso directo del Escritorio.
-echo Si algo fuera mal, lo anterior quedo guardado en:
+echo Actualizacion terminada. Si algo fuera mal, lo anterior quedo guardado en:
 echo   %COPIAS%
 echo.
-pause
+echo Abriendo el Calendario...
+if not defined PYEXE goto :abrir_acceso
+set "PYW=%PYEXE:python.exe=pythonw.exe%"
+if exist "%PYW%" (
+    start "" /d "%INSTALL_DIR%\app" "%PYW%" "%INSTALL_DIR%\app\calendario.py"
+    goto :listo
+)
 
+:abrir_acceso
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$f=Join-Path ([Environment]::GetFolderPath('Desktop')) 'Calendario.lnk'; if(Test-Path -LiteralPath $f){ Start-Process -FilePath $f }"
+
+:listo
 rmdir /s /q "%WORKDIR%" >nul 2>&1
+timeout /t 3 >nul
 exit /b 0
 
 :probar

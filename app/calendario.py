@@ -43,7 +43,7 @@ import recurring_ical_events
 
 import sincronizar
 
-VERSION = "2.5.0"
+VERSION = "2.5.1"
 
 # --------------------------------------------------------------------------
 # Configuracion
@@ -6194,6 +6194,9 @@ class Widget(tk.Tk):
                              checked=lambda i: CFG.get("clics_atraviesan", False)),
             pystray.MenuItem("Centrar en la pantalla", en_hilo_tk(self._centrar)),
             pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Arrancar con Windows",
+                             en_hilo_tk(self._alternar_arranque),
+                             checked=lambda i: arranque_activo()),
             pystray.MenuItem("Salir", en_hilo_tk(self._salir)),
         )
         try:
@@ -8101,7 +8104,7 @@ class Widget(tk.Tk):
             ("Post-It", "las notas unidas (botón 📅 de la nota) mandan aquí sus líneas con hora como eventos, y reciben los eventos de cada fecha"),
         )),
         ("Actualizaciones", (
-            ("Aviso al abrir", "si hay una versión nueva en GitHub te lo dice una vez; «Sí» descarga el instalador y lo abre. Tu configuración y tus perfiles se conservan"),
+            ("Aviso al abrir", "si hay una versión nueva en GitHub te lo dice una vez; «Sí» cierra el Calendario, lo actualiza con una barra de progreso y lo vuelve a abrir. Tu configuración y tus perfiles se conservan"),
             ("Clic derecho › Buscar actualizaciones…", "lo comprueba cuando quieras"),
         )),
     )
@@ -8148,7 +8151,7 @@ class Widget(tk.Tk):
         self.after(6 * 3600 * 1000, self._comprobar_actualizacion_periodica)
 
     # ---- aviso de versión nueva: se mira la VERSION.txt publicada en GitHub (no se manda ningún dato). «Sí» baja el instalador de
-    # esa versión y lo abre; él conserva datos y perfiles. Se pregunta una vez por versión (o siempre que se pida a mano).
+    # esa versión y lo lanza con -Actualizar (cierra, actualiza con barra de progreso y reabre); él conserva datos y perfiles. Se pregunta una vez por versión (o siempre que se pida a mano).
     def _buscar_actualizacion(self, a_mano=False):
         import threading
 
@@ -8157,7 +8160,16 @@ class Widget(tk.Tk):
                 with requests.get("https://raw.githubusercontent.com/Kuerb0/Calendario-App/main/app/VERSION.txt", timeout=15) as r:
                     r.raise_for_status()
                     nueva = r.text.strip()
-                self.after(0, lambda: self._ofrecer_actualizacion(nueva, a_mano))
+                novedades = ""      # qué trae la versión nueva (novedades.txt del repositorio; opcional)
+                if sincronizar.version_mayor(nueva, VERSION):
+                    try:
+                        with requests.get("https://raw.githubusercontent.com/Kuerb0/Calendario-App/main/novedades.txt", timeout=10) as rn:
+                            if rn.status_code == 200:
+                                lineas = [l.strip() for l in rn.content.decode("utf-8-sig").splitlines() if l.strip()]
+                                novedades = " ".join(lineas[:3])[:220]
+                    except Exception:
+                        pass
+                self.after(0, lambda: self._ofrecer_actualizacion(nueva, a_mano, novedades))
             except Exception as exc:
                 if a_mano:
                     self.after(0, lambda: self._avisar("No se pudo comprobar las actualizaciones.\n\n%s" % exc))
@@ -8168,7 +8180,7 @@ class Widget(tk.Tk):
         from tkinter import messagebox
         messagebox.showinfo("Calendario", texto, parent=self)
 
-    def _ofrecer_actualizacion(self, nueva, a_mano):
+    def _ofrecer_actualizacion(self, nueva, a_mano, novedades=""):
         from tkinter import messagebox
         if not sincronizar.version_mayor(nueva, VERSION):
             if a_mano:
@@ -8187,22 +8199,42 @@ class Widget(tk.Tk):
                 f.write(nueva)
         except OSError:
             pass
-        if not messagebox.askyesno("Calendario", "Hay una versión nueva del Calendario (%s); tienes la %s.\n\n"
-                                   "¿Descargar el instalador y abrirlo ahora? Tu configuración y tus perfiles se conservan."
-                                   % (nueva, VERSION), parent=self):
+        if not messagebox.askyesno("Calendario", "Hay una versión nueva del Calendario (%s); tienes la %s.\n\n%s"
+                                   "¿Actualizar ahora? Se cierra el Calendario, se actualiza con una barra de progreso y se "
+                                   "vuelve a abrir. Tu configuración y tus perfiles se conservan."
+                                   % (nueva, VERSION, ("Novedades: %s\n\n" % novedades) if novedades else ""), parent=self):
             return
         try:
+            import hashlib
             nombre = "Calendario %s - Instalador.exe" % nueva
             url = "https://github.com/Kuerb0/Calendario-App/raw/main/instaladores/" + requests.utils.quote(nombre)
             destino = os.path.join(os.environ.get("TEMP", LOCAL), nombre)
+            suma = hashlib.sha256()
             with requests.get(url, timeout=120, stream=True) as r:
                 r.raise_for_status()
                 with open(destino, "wb") as f:
                     for trozo in r.iter_content(65536):
                         f.write(trozo)
-            os.startfile(destino)
+                        suma.update(trozo)
+            # el instalador solo se ejecuta si llegó entero: su suma SHA-256 va publicada junto a él (la escribe generar_instaladores.py)
+            try:
+                with requests.get(url + ".sha256", timeout=15) as rs:
+                    rs.raise_for_status()
+                    esperada = rs.text.split()[0].lower()
+            except Exception:
+                os.remove(destino)
+                raise RuntimeError("No se pudo comprobar la descarga (falta su suma SHA-256).")
+            if suma.hexdigest() != esperada:
+                os.remove(destino)
+                raise RuntimeError("La descarga no coincide con su suma SHA-256 (incompleta o dañada). No se ha ejecutado.")
+            import subprocess
+            # sin asistente: el instalador espera a que cierre el Calendario, lo actualiza con su barra de progreso y lo abre otra vez
+            subprocess.Popen([destino, "-Actualizar"], close_fds=True,
+                             creationflags=0x00000008 | 0x00000200 | 0x08000000)    # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
         except Exception as exc:
-            self._avisar("No se pudo descargar el instalador.\n\n%s" % exc)
+            self._avisar("No se pudo actualizar el Calendario.\n\n%s\n\nSigues con la versión que tenías." % exc)
+            return
+        self.after(400, self._salir)
 
     def refrescar_correo(self, minutos=None):
         """Igual que refrescar(), pero para el correo (si está activo)."""
