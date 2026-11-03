@@ -43,7 +43,7 @@ import recurring_ical_events
 
 import sincronizar
 
-VERSION = "2.4.1"
+VERSION = "2.5.0"
 
 # --------------------------------------------------------------------------
 # Configuracion
@@ -6156,6 +6156,9 @@ class Widget(tk.Tk):
             pystray.MenuItem("Actualizar ahora", en_hilo_tk(self.refrescar)),
             pystray.MenuItem("Ayuda y atajos…", en_hilo_tk(self._abrir_ayuda_general)),
             pystray.MenuItem("Buscar actualizaciones…", en_hilo_tk(lambda: self._buscar_actualizacion(True))),
+            pystray.MenuItem("Arrancar con Windows", en_hilo_tk(self._alternar_arranque),
+                             checked=lambda i: arranque_activo()),
+            pystray.MenuItem("Carpeta de sincronización…", en_hilo_tk(self._elegir_carpeta_sync)),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Calendario",
                              en_hilo_tk(lambda: self._cambiar_vista("rejilla")),

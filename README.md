@@ -142,6 +142,7 @@ El instalador es un asistente de varias páginas: explica qué hace, pide la **c
 - Quita los accesos directos rotos de versiones anteriores y las entradas de «Aplicaciones» sin carpeta.
 - Al abrir, el Calendario avisa si hay una versión nueva en GitHub («Sí» descarga el instalador y lo abre); también en el clic derecho › *Buscar actualizaciones…*.
 - **Ayuda y atajos** (clic derecho o icono de la bandeja) reúne en una ventana los gestos, atajos y paneles.
+- **Menú del icono de la bandeja**: además de mostrar u ocultar el widget tiene *Buscar actualizaciones…*, *Arrancar con Windows* (marca/desmarca) y *Carpeta de sincronización…* (la misma que Post-It, en OneDrive).
 - Prueba del instalador: `powershell -File herramientas\test_instalador.ps1` (instala y actualiza en una carpeta temporal).
 
 ## Estructura de carpetas
